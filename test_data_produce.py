@@ -22,7 +22,9 @@ _path_10_10 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/10_10/
 
 # 寻找符合要求的测试数据，将数据写入csv
 def test_data_produce(data, count_days, drop_rate, path, isIncrease):
+    #  路径不存在则创建
     if not os.path.exists(path):
+        os.mkdir(path)
         os.mkdir(path + 'test_data/')
         os.mkdir(path + 'confirm_data/')
     # 获取已有数据的最晚日期
