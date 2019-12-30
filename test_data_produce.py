@@ -160,6 +160,10 @@ def cal_profit(data, up_day:int, test:bool):
     return df_profit
 
 
+def cal_aver_window(data, days:int):
+    
+    return
+
 data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
 data = pd.read_csv(data_path, sep=',', low_memory=False)
 rec_data = get_data(data)
@@ -170,9 +174,9 @@ rec_data = get_data(data)
 # test_data_produce(rec_data, 10, -0.1, path_10_10, False)
 # confirm_data_update(rec_data, 50, path_10_10)
 # test 5days, rate 5, confirm 50days
-test_data_produce(rec_data, 5, 0.05, _path_5_5, True)
+# test_data_produce(rec_data, 5, 0.05, _path_5_5, True)
 # test 10days, rate 10, confirm 50days
-test_data_produce(rec_data, 10, 0.1, _path_5_5, True)
+test_data_produce(rec_data, 10, 0.1, _path_10_10, True)
 
 # test 10days, rate -15, confirm 50days
 #test_data_produce(rec_data, 10, -0.15, path_10_15)
