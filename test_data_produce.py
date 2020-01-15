@@ -1,11 +1,24 @@
  # ToDo:配置可拓展，支持同天数内不同利率的筛选
 
+ # 已完成：
+ # 1.计算n天的最大和最终涨跌幅并设置阈值筛选
+ # TODO：
+ # 筛选n天连涨状态的股票 || n天连涨且涨幅到达阈值
+ # 测试n天涨幅达阈值的股票方案是否可靠
+
 import numpy as np
 import pandas as pd
 import time
 import os
 import datetime
 from dateutil.relativedelta import relativedelta
+
+
+class cal_para():
+    cal_day = 0
+    cal_profit = 0.0
+    res_path = ""
+    
 
 # 当前日期
 today = int(time.strftime("%Y%m%d", time.localtime()))
@@ -15,9 +28,10 @@ path_5_5 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/5_-5/'
 path_5_10 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/5_-10/'
 path_10_10 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/10_-10/'
 path_10_15 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/10_-15/'
-path_10_20 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/10_-20/'
 _path_5_5 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/5_5/'
 _path_10_10 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/10_10/'
+_path_10_15 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/10_15/'
+
 
 
 # 寻找符合要求的测试数据，将数据写入csv
@@ -167,20 +181,15 @@ def cal_aver_window(data, days:int):
 data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
 data = pd.read_csv(data_path, sep=',', low_memory=False)
 rec_data = get_data(data)
-# test 5days, rate -5, confirm 50days
+# # test 5days, rate -5, confirm 50days
 # test_data_produce(rec_data, 5, -0.05, path_5_5, False)
-# confirm_data_update(rec_data, 50, path_5_5)
-# test 10days, rate -10, confirm 50days
+# # confirm_data_update(rec_data, 50, path_5_5)
+# # test 10days, rate -10, confirm 50days
 # test_data_produce(rec_data, 10, -0.1, path_10_10, False)
-# confirm_data_update(rec_data, 50, path_10_10)
-# test 5days, rate 5, confirm 50days
+# # confirm_data_update(rec_data, 50, path_10_10)
+# # test 5days, rate 5, confirm 50days
 # test_data_produce(rec_data, 5, 0.05, _path_5_5, True)
-# test 10days, rate 10, confirm 50days
-test_data_produce(rec_data, 10, 0.1, _path_10_10, True)
-
-# test 10days, rate -15, confirm 50days
-#test_data_produce(rec_data, 10, -0.15, path_10_15)
-# confirm_data_update(rec_data, 50, path_10_15)
-# test 10days, rate -20, confirm 50days
-# test_data_produce(rec_data, 10, -0.2, path_10_20)
-# confirm_data_update(rec_data, 50, path_10_20)
+# # test 10days, rate 10, confirm 50days
+# test_data_produce(rec_data, 10, 0.1, _path_10_10, True)
+# test_data_produce(rec_data, 10, 0.15, _path_10_15, True)
+test_data_produce(rec_data, 10, -0.15, path_10_15, False)
