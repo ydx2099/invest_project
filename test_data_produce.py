@@ -8,10 +8,15 @@
 
 import numpy as np
 import pandas as pd
-import time
 import os
 import datetime
 from dateutil.relativedelta import relativedelta
+import time
+import lightgbm as lgb
+from sklearn import datasets
+from sklearn.model_selection import train_test_split,GridSearchCV,StratifiedKFold
+from sklearn.metrics import f1_score
+import sklearn
 
 
 class cal_para():
@@ -22,7 +27,7 @@ class cal_para():
 
 # 当前日期
 today = int(time.strftime("%Y%m%d", time.localtime()))
-ori_start_date = int((datetime.datetime.today() + datetime.timedelta(weeks=-12)).strftime('%Y%m%d'))
+ori_start_date = int((datetime.datetime.today() + datetime.timedelta(weeks=-20)).strftime('%Y%m%d'))
 # 测试与验证路径
 path_5_5 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/5_-5/'
 path_5_10 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/5_-10/'
@@ -125,14 +130,6 @@ def get_latest_test_date(path):
         test_date.append(int(f.split('.')[0]))
     return test_date
 
-# 获取n天前的交易日期
-def get_trade_day_before(n:int, data):
-    data = data["Symbol" == 600001]
-    data = data.sort_values("TradingDate", ascending=False)
-    retdate = []
-    for i in range(50):
-        retdate += data.iloc[i]["TradingDate"]
-    return retdate
 
 # 处理输入数据，返回选择天数n的累计值和最大值
 def cal_profit(data, up_day:int, test:bool):
@@ -174,22 +171,160 @@ def cal_profit(data, up_day:int, test:bool):
     return df_profit
 
 
-def cal_aver_window(data, days:int):
+# lgbm with kfold
+# 将数据根据不同策略进行分类，收益符合预期的为大于1的类别，失败例分为类别0
+# 使用lgbm框架训练，对后续数据进行预测
+# TODO：跟踪预测数据的结果，判断是否正确，重新加权训练
+def lgbmKfold(datas, labels, classes, testData=None, testLabel=None):
+    if testData == None and testLabel == None:
+        X_train,X_test,y_train,y_test=train_test_split(datas, labels, test_size=0.3, random_state=2020)
+    else:
+        X_train = datas
+        X_test = labels
+        y_train = testData
+        y_test = testLabel
+    params={
+        'boosting_type': 'gbdt',  
+        'learning_rate':0.1,
+        'lambda_l1':0.1,
+        'lambda_l2':0.2,
+        'max_depth':4,
+        'objective':'multiclass',
+        'num_class':classes,
+    }
+    # k折交叉验证
+    folds_num = 5
+    skf = StratifiedKFold(n_splits=folds_num, random_state=2020, shuffle=True)
+    test_pred_prob = np.zeros((X_test.shape[0], classes))
+    for _, (trn_idx, val_idx) in enumerate(skf.split(X_train, y_train)):
+        train_data = lgb.Dataset(X_train[trn_idx], label=y_train[trn_idx])
+        validation_data = lgb.Dataset(X_test[val_idx], label=y_test[val_idx])
+        # 训练
+        clf = lgb.train(params, train_data, valid_sets=[validation_data], num_boost_round=1000)
+        # 当前折预测
+        clf.predict(X_train[val_idx], num_iteration=clf.best_iteration)
+        # 加权计算预测分数
+        test_pred_prob += clf.predict(X_test, num_iteration=clf.best_iteration) / folds_num
+
+    return test_pred_prob
+
+
+# filter data behind window
+# cal n days average, get variance
+# via statistic set suitable window
+# get stocks over window or below window
+# return map (over:data, below:data)
+def cal_window(data, count_num):
+    over_data = list()
+    below_data = list()
+    for i in range(0, len(data)):
+        varience = data.iloc[i: i + count_num, 2].var()
+        avr = data.iloc[i: i + count_num, 2].mean()
+        if data.iloc[i + count_num, 2] > avr + 3 * varience:
+            over_data += data.iloc[i + count_num]
+        if data.iloc[i + count_num, 2] < avr - 3 * varience:
+            below_data += data.iloc[i + count_num]
+    res_map = {"over": over_data, "below": below_data}
+    return res_map
+
+
+# get confirm data and give label
+def get_data_and_label(path):
+    pd_data = pd.read_csv(path)
+    datas = list()
+    labels = list()
+    for p in pd_data:
+        if p["p"] >= 0.12:
+            labels.append(1)
+        else:
+            labels.append(0)
+        datas.append(p)
+
+    return datas, labels
+
+
+# machine learns
+# all is over 12, and per is below 6
+# in 5 or 10 days
+def machine_learning():
+    # you can use lgbm to classify successes compare to failures
     
+    # get confirm data, select data and give label
+    datas, labels = get_data_and_label(r'')
+    
+    lgbmKfold(datas, labels, 2)
     return
 
-data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
-data = pd.read_csv(data_path, sep=',', low_memory=False)
-rec_data = get_data(data)
-# # test 5days, rate -5, confirm 50days
-# test_data_produce(rec_data, 5, -0.05, path_5_5, False)
-# # confirm_data_update(rec_data, 50, path_5_5)
-# # test 10days, rate -10, confirm 50days
-# test_data_produce(rec_data, 10, -0.1, path_10_10, False)
-# # confirm_data_update(rec_data, 50, path_10_10)
-# # test 5days, rate 5, confirm 50days
-# test_data_produce(rec_data, 5, 0.05, _path_5_5, True)
-# # test 10days, rate 10, confirm 50days
-# test_data_produce(rec_data, 10, 0.1, _path_10_10, True)
-# test_data_produce(rec_data, 10, 0.15, _path_10_15, True)
-test_data_produce(rec_data, 10, -0.15, path_10_15, False)
+
+# 涨7策略
+def cal_7(data):
+    # 算法计算得到的数据
+    filter_data = list()
+    df_group = data.groupby(by="Symbol")
+    stock_list = list(df_group.groups.keys())
+    for i in stock_list:
+        cur_data = data[data['Symbol'] == i]
+        if cur_data['ChangeRatio'] >= 0.07:
+            filter_data.append(cur_data['Symbol'], cur_data['TradingDate'])
+    return filter_data
+
+
+# n天连涨策略
+def cal_nnn(data):
+    filter_data = list()
+    df_group = data.groupby(by="Symbol")
+    stock_list = list(df_group.groups.keys())
+    for i in stock_list:
+        cur_data = data[data['Symbol'] == i]
+        for j in range(0, cur_data.shape[0] - 2):
+            if cur_data[j]['ChangeRatio'] and cur_data[j + 1]['ChangeRatio'] and cur_data[j + 2]['ChangeRatio']:
+                filter_data.append(cur_data[j + 2]['Symbol'], cur_data[j + 2]['ChangeRatio'])
+    return filter_data
+
+
+# 回测
+def back_test():
+
+    return
+
+
+if __name__ == "__main__":
+    data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
+    data = pd.read_csv(data_path, sep=',', low_memory=False)
+    rec_data = get_data(data)
+
+    # 获取最近1天和n天数据
+    n = 3
+    data = rec_data[rec_data['Symbol'] == 600001]
+    data = data.sort_values("TradingDate", ascending=False)
+    last_tradingdate = int(data.iloc[0]['TradingDate'].replace("_", ""))
+    last_n_tradingdate = int(data.iloc[n]['TradingDate'].replace("_", ""))
+    yestoday_data = rec_data[rec_data['TradingDate'] == last_tradingdate]
+    last_n_data = rec_data[rec_data['TradingDate'] > last_n_tradingdate]
+
+    # 回测
+    back_test()
+
+    # 涨7策略
+    cal_7(yestoday_data)
+
+    # 连涨策略
+    cal_nnn(last_n_data)
+
+    # n天涨n策略
+
+    # # test 5days, rate -5, confirm 50days
+    # test_data_produce(rec_data, 5, -0.05, path_5_5, False)
+    # # confirm_data_update(rec_data, 50, path_5_5)
+    # # test 10days, rate -10, confirm 50days
+    # test_data_produce(rec_data, 10, -0.1, path_10_10, False)
+    # # confirm_data_update(rec_data, 50, path_10_10)
+    # # test 5days, rate 5, confirm 50days
+    # test_data_produce(rec_data, 5, 0.05, _path_5_5, True)
+    # # test 10days, rate 10, confirm 50days
+    # test_data_produce(rec_data, 10, 0.1, _path_10_10, True)
+    # test_data_produce(rec_data, 10, 0.15, _path_10_15, True)
+    # test_data_produce(rec_data, 10, -0.15, path_10_15, False)
+
+    # LGBM
+    # machine_learning()
