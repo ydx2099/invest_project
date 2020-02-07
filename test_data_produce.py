@@ -36,6 +36,8 @@ path_10_15 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/10_-15/
 _path_5_5 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/5_5/'
 _path_10_10 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/10_10/'
 _path_10_15 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/10_15/'
+path_over7 = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/7/'
+path_nnn = 'C:/Users/wuziyang/Documents/PyWork/trading_simulation/test/nnn/'
 
 
 
@@ -53,11 +55,11 @@ def test_data_produce(data, count_days, drop_rate, path, isIncrease):
     # 计算5天涨跌
     target_data = cal_profit(cal_data, count_days, True)
     # 按日期排序,输出每天跌幅达到阈值的数据
-    df_group = target_data.groupby(by="Date")
+    df_group = target_data.groupby(by="TradingDate")
     date_list = list(df_group.groups.keys())
     for i in date_list:
         temp_list = []
-        everyday_data = target_data[target_data['Date'] == i]
+        everyday_data = target_data[target_data['TradingDate'] == i]
         for row in everyday_data.values:
             if isIncrease:
                 if row[2] >= drop_rate:
@@ -65,7 +67,7 @@ def test_data_produce(data, count_days, drop_rate, path, isIncrease):
             elif row[2] <= drop_rate:
                 temp_list.append(list(row))
         if len(temp_list):
-            testdata_df = pd.DataFrame(temp_list, columns=['ID', 'Date', 'total', 'max'])
+            testdata_df = pd.DataFrame(temp_list, columns=['Symbol', 'TradingDate', 'ChangeRatio', 'max'])
             testdata_df.to_csv(path + 'test_data/' + str(i) + '.csv', index=False)
 
 # 收集测试数据对应的验证数据,更新相应文件
@@ -78,7 +80,7 @@ def confirm_data_update(data, count_days, path):
     for dates in confirm_dates:
         if os.path.exists(path + 'test_data/' + str(dates) + '.csv'):
             test_data = pd.read_csv(path + 'test_data/' + str(dates) + '.csv')
-            df_group = test_data.groupby(by="ID")
+            df_group = test_data.groupby(by="Symbol")
             stock_list += list(df_group.groups.keys())
     stock_set = set(stock_list)
 
@@ -86,18 +88,18 @@ def confirm_data_update(data, count_days, path):
     # 只计算test股票
     confirm_data = cal_profit(data, count_days, False)
     for i in confirm_dates:
-        day_data = confirm_data[confirm_data['Date'] == i]
+        day_data = confirm_data[confirm_data['TradingDate'] == i]
         # 更新数据
         out_data = []
         if os.path.exists(path + 'test_data/' + str(i) + '.csv'):
             test_data = pd.read_csv(path + 'test_data/' + str(i) + '.csv')
-            df_group = test_data.groupby(by="ID")
+            df_group = test_data.groupby(by="Symbol")
             id_list = list(df_group.groups.keys())
             for test_id in id_list:
-                out_data.append(list(day_data.loc[day_data['ID'] == test_id]))
+                out_data.append(list(day_data.loc[day_data['Symbol'] == test_id]))
 
         # 转为dataframe输出
-        confirm_df = pd.DataFrame(out_data, columns=['ID', 'Date', 'total', 'max'])
+        confirm_df = pd.DataFrame(out_data, columns=['Symbol', 'TradingDate', 'ChangeRatio', 'max'])
         confirm_df.to_csv(path + 'confirm_data/' + str(i) + '.csv', index=False)                
 
 
@@ -166,7 +168,7 @@ def cal_profit(data, up_day:int, test:bool):
                 dayn_profit.append([stock_id, date, cur_profit, max_profit])
     
     # 转为dataframe输出
-    df_profit = pd.DataFrame(dayn_profit, columns=['ID', 'Date', 'total', 'max'])
+    df_profit = pd.DataFrame(dayn_profit, columns=['Symbol', 'TradingDate', 'ChangeRatio', 'max'])
 
     return df_profit
 
@@ -257,59 +259,156 @@ def machine_learning():
 
 
 # 涨7策略
-def cal_7(data):
+def cal_7(data, date):
     # 算法计算得到的数据
     filter_data = list()
     df_group = data.groupby(by="Symbol")
     stock_list = list(df_group.groups.keys())
     for i in stock_list:
         cur_data = data[data['Symbol'] == i]
-        if cur_data['ChangeRatio'] >= 0.07:
-            filter_data.append(cur_data['Symbol'], cur_data['TradingDate'])
+        if cur_data.iloc[0]['ChangeRatio'] >= 0.07:
+            filter_data.append(cur_data.iloc[0]['Symbol'])
+
+    # 转为dataframe输出
+    confirm_df = pd.DataFrame(filter_data, columns=['Symbol'])
+    confirm_df.to_csv(path_over7 + str(date) + '.csv', index=False)                
+
     return filter_data
 
 
 # n天连涨策略
-def cal_nnn(data):
+def cal_nnn(data, date):
     filter_data = list()
     df_group = data.groupby(by="Symbol")
     stock_list = list(df_group.groups.keys())
     for i in stock_list:
         cur_data = data[data['Symbol'] == i]
         for j in range(0, cur_data.shape[0] - 2):
-            if cur_data[j]['ChangeRatio'] and cur_data[j + 1]['ChangeRatio'] and cur_data[j + 2]['ChangeRatio']:
-                filter_data.append(cur_data[j + 2]['Symbol'], cur_data[j + 2]['ChangeRatio'])
+            if cur_data.iloc[j]['ChangeRatio'] > 0 and cur_data.iloc[j + 1]['ChangeRatio'] > 0 and cur_data.iloc[j + 2]['ChangeRatio'] > 0:
+                filter_data.append(cur_data.iloc[j + 2]['Symbol'])
+
+    # 转为dataframe输出
+    confirm_df = pd.DataFrame(filter_data, columns=['Symbol'])
+    confirm_df.to_csv(path_nnn + str(date) + '.csv', index=False)                
+
     return filter_data
 
+# 根据给定数据计算最终收益
+def get_end_profit(data):
+    end_p = 1.0
+    max_p = 1.0
+    # 去重
+    data.drop_duplicates(subset=['TradingDate'], inplace=True)
+    # 排序
+    data = data.sort_values(['TradingDate'], ascending=True)
+    # 计算
+    for i in range(0, data.shape[0]):
+        end_p = end_p * (1 + data.iloc[i]['ChangeRatio'])
+        if end_p > max_p:
+            max_p = end_p
+    return end_p, max_p
 
 # 回测
-def back_test():
+# 对所有策略以最近n年数据进行测试
+# 设置最大同时持股数，当前为5，后续随资金量增长可设置更大值
 
+# 需要一种方法衡量策略的风险
+def back_test(data, test_years, max_stockhold):
+    # 最小持股数 = (最大持股数 / 2) + 1
+    # min_stockhold = max_stockhold / 2 + 1
+    start_date = today - test_years * 10000
+    use_data = data[data['TradingDate'] >= start_date - 200]
+    # 记录持股
+    stock_hold_up10 = []
+    stock_hold_down10 = []
+    stock_hold_7 = []
+    # 记录收益
+    profit_up10 = [1.0, 1.0]
+    profit_down10 = [1.0, 1.0]
+    profit_7 = 1.0
+
+    # n天涨跌n%策略
+    # 测试方法为每两个月按策略进行买入卖出，计算最终收益
+    # 一个月为买入期，一个月为卖出期
+    for i in range(0, test_years * 6):
+        # 计算收益
+        if not i == 0:  
+            cal_data = use_data[use_data['TradingDate'] <= start_date + i * 100]
+            cur_profit_up10 = [0.0, 0.0]
+            cur_profit_downc10 = [0.0, 0.0]
+            # 计算每只持有股票的最终/最高收益
+            for stock in stock_hold_up10:
+                stock_data = cal_data[cal_data['Symbol'] == stock['Symbol']]
+                stock_data = stock_data[stock_data['TradingDate'] > stock['TradingDate']]
+                end_p, max_p = get_end_profit(stock_data)
+                profit_up10 += [end_p, max_p]
+                
+            for stock in stock_hold_down10:
+                stock_data = cal_data[cal_data['Symbol'] == stock['Symbol']]
+                stock_data = stock_data[stock_data['TradingDate'] > stock['TradingDate']]
+                end_p, max_p = get_end_profit(stock_data)
+                profit_down10 += [end_p, max_p]
+
+            profit_up10 /= len(stock_hold_up10)
+            profit_down10 /= len(stock_hold_down10)
+            
+        # 取出当前批次数据
+        cur_batch_data = use_data[use_data['TradingDate'] <= start_date + i * 100]
+        cur_batch_data = cur_batch_data[cur_batch_data['TradingDate'] >= start_date + (i - 1) * 100]
+
+        # 计算下一批次所选股票
+        simu_cal5_data = cal_profit(cur_batch_data, 5, True)
+        simu_cal5_up10_data = simu_cal5_data[simu_cal5_data['ChangeRatio'] >= 0.1]
+        simu_cal5_down10_data = simu_cal5_data[simu_cal5_data['ChangeRatio'] >= -0.1]
+        # simu_cal10_data = cal_profit(cur_batch_data, 10, True)
+        # 按最终涨幅排序，从高到低
+        simu_cal5_up10_data = simu_cal5_up10_data.sort_values(by='ChangeRatio')
+        simu_cal5_down10_data = simu_cal5_down10_data.sort_values(by='ChangeRatio')
+        # 持有股票
+        for j in range(0, max(max_stockhold, simu_cal5_up10_data.shape[0])):
+            stock_hold_up10.append(simu_cal5_up10_data.iloc[j])
+
+        for j in range(0, max(max_stockhold, simu_cal5_down10_data.shape[0])):
+            stock_hold_down10.append(simu_cal5_down10_data.iloc[j])
+
+
+
+    # 涨7策略执行短线交易，每当拥有现金即进行交易
+    # 设置最大持有天数，暂为10个交易日
+    # 测试为简便起见，以10个交易日为一个交易周期
+    df_group = data.groupby(by="TradingDate")
+    date_list = list(df_group.groups.keys())
+    for i in date_list:
+        cur_day_data = use_data[use_data['TradingDate'] == i]
+        simu_7_data = cal_7(cur_batch_data, i)
+
+        
     return
 
 
 if __name__ == "__main__":
     data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
+    data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
     rec_data = get_data(data)
 
     # 获取最近1天和n天数据
     n = 3
-    data = rec_data[rec_data['Symbol'] == 600001]
+    data = rec_data[rec_data['Symbol'] == 600000]
     data = data.sort_values("TradingDate", ascending=False)
-    last_tradingdate = int(data.iloc[0]['TradingDate'].replace("_", ""))
-    last_n_tradingdate = int(data.iloc[n]['TradingDate'].replace("_", ""))
+    last_tradingdate = int(data.iloc[0]['TradingDate'])
+    last_n_tradingdate = int(data.iloc[n]['TradingDate'])
     yestoday_data = rec_data[rec_data['TradingDate'] == last_tradingdate]
     last_n_data = rec_data[rec_data['TradingDate'] > last_n_tradingdate]
 
     # 回测
-    back_test()
+    # back_test()
 
     # 涨7策略
-    cal_7(yestoday_data)
+    cal_7(yestoday_data, last_tradingdate)
 
     # 连涨策略
-    cal_nnn(last_n_data)
+    cal_nnn(last_n_data, last_tradingdate)
 
     # n天涨n策略
 
