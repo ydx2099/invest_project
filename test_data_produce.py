@@ -341,16 +341,19 @@ def back_test(data, test_years, max_stockhold):
                 stock_data = cal_data[cal_data['Symbol'] == stock['Symbol']]
                 stock_data = stock_data[stock_data['TradingDate'] > stock['TradingDate']]
                 end_p, max_p = get_end_profit(stock_data)
-                profit_up10 += [end_p, max_p]
+                cur_profit_up10 += [end_p, max_p]
                 
             for stock in stock_hold_down10:
                 stock_data = cal_data[cal_data['Symbol'] == stock['Symbol']]
                 stock_data = stock_data[stock_data['TradingDate'] > stock['TradingDate']]
                 end_p, max_p = get_end_profit(stock_data)
-                profit_down10 += [end_p, max_p]
+                cur_profit_downc10 += [end_p, max_p]
 
-            profit_up10 /= len(stock_hold_up10)
-            profit_down10 /= len(stock_hold_down10)
+            cur_profit_up10 /= len(stock_hold_up10)
+            cur_profit_downc10 /= len(stock_hold_down10)
+            # 更新profit
+            profit_up10 *= cur_profit_up10
+            profit_down10 *= cur_profit_downc10
             
         # 取出当前批次数据
         cur_batch_data = use_data[use_data['TradingDate'] <= start_date + i * 100]
@@ -364,6 +367,9 @@ def back_test(data, test_years, max_stockhold):
         # 按最终涨幅排序，从高到低
         simu_cal5_up10_data = simu_cal5_up10_data.sort_values(by='ChangeRatio')
         simu_cal5_down10_data = simu_cal5_down10_data.sort_values(by='ChangeRatio')
+        # 先清空持股记录
+        stock_hold_up10 = []
+        stock_hold_down10 = []
         # 持有股票
         for j in range(0, max(max_stockhold, simu_cal5_up10_data.shape[0])):
             stock_hold_up10.append(simu_cal5_up10_data.iloc[j])
@@ -373,14 +379,14 @@ def back_test(data, test_years, max_stockhold):
 
 
 
-    # 涨7策略执行短线交易，每当拥有现金即进行交易
-    # 设置最大持有天数，暂为10个交易日
-    # 测试为简便起见，以10个交易日为一个交易周期
-    df_group = data.groupby(by="TradingDate")
-    date_list = list(df_group.groups.keys())
-    for i in date_list:
-        cur_day_data = use_data[use_data['TradingDate'] == i]
-        simu_7_data = cal_7(cur_batch_data, i)
+    # # 涨7策略执行短线交易，每当拥有现金即进行交易
+    # # 设置最大持有天数，暂为10个交易日
+    # # 测试为简便起见，以10个交易日为一个交易周期
+    # df_group = data.groupby(by="TradingDate")
+    # date_list = list(df_group.groups.keys())
+    # for i in date_list:
+    #     cur_day_data = use_data[use_data['TradingDate'] == i]
+    #     simu_7_data = cal_7(cur_batch_data, i)
 
         
     return
