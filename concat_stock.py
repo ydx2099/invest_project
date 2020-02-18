@@ -10,7 +10,7 @@ stock_data1 = pd.read_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulatio
 
 stock_data = pd.read_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv', sep=',')
 
-stock_data1['TradingDate'] = stock_data1['TradingDate'].map(lambda x: x.replace('-', ''))
+# stock_data1['TradingDate'] = stock_data1['TradingDate'].map(lambda x: x.replace('-', ''))
 stock_data = stock_data.append(stock_data1)
 stock_data.drop_duplicates(subset=['Symbol', 'TradingDate'], inplace=True)
 
