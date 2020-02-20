@@ -3,8 +3,10 @@ import pandas as pd
 import numpy as np
 import timeit
 import math
+import get_data as gd
 
 
+gd.get_data("20200220")
 
 stock_data1 = pd.read_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\add_data\STK_MKT_Dalyr.csv', sep='\t')
 

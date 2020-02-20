@@ -19,7 +19,4 @@ def get_data(date):
     df['change'] = df.apply(lambda row: row['change'] / 100, axis=1)
     df.columns = ['Symbol', 'TradingDate', 'ChangeRatio']
 
-    return df
-
-df = get_data("20200217")
-df.to_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\add_data\STK_MKT_Dalyr.csv', sep='\t', index=False)
+    df.to_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\add_data\STK_MKT_Dalyr.csv', sep='\t', index=False)

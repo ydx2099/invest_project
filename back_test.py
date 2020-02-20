@@ -202,3 +202,4 @@ if __name__ == "__main__":
     tdata = tdata.sort_values("TradingDate", ascending=False)
     date_list = tdata['TradingDate'].tolist
     
+    # 评估公式: score = all_add(x - 1.06) / np.var(x)
