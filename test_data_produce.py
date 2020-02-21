@@ -19,12 +19,6 @@ from sklearn.metrics import f1_score
 import sklearn
 
 
-class cal_para():
-    cal_day = 0
-    cal_profit = 0.0
-    res_path = ""
-    
-
 # 当前日期
 today = int(time.strftime("%Y%m%d", time.localtime()))
 ori_start_date = int((datetime.datetime.today() + datetime.timedelta(weeks=-20)).strftime('%Y%m%d'))
