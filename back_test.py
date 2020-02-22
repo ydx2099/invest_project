@@ -8,6 +8,26 @@ import test_data_produce as ts
 import random
 
 
+# 当前日期
+today = int(time.strftime("%Y%m%d", time.localtime()))
+
+
+class HoldStock():
+    def __init__(self, symbol:str, date:str, amount:float, data):
+        self.symbol = symbol
+        self.startdate = date
+        self.amount = amount
+        self.p = 1.0
+        self.data = data
+
+    def __del__(self):
+        del self.symbol
+        del self.startdate
+        del self.amount
+        del self.p
+        del self.data
+    
+
 # 根据给定数据计算最终收益
 def get_end_profit(data):
     end_p = 1.0
@@ -28,22 +48,40 @@ def get_end_profit(data):
 # 设置最大同时持股数，当前为5，后续随资金量增长可设置更大值
 
 # 需要一种方法衡量策略的风险
-def back_test(data, test_years, max_stockhold):
+def back_test(data, test_years, max_stockhold, tradingdate):
     # 交易频率(天)
     up10_trading_freq = 10 
     down_trading_freq = 20
-    # 最小持股数 = (最大持股数 / 2) + 1
-    # min_stockhold = max_stockhold / 2 + 1
-    start_date = today - test_years * 10000
-    use_data = data[data['TradingDate'] >= start_date - 200]
+    # 计算日期
+    cal_date = tradingdate[4:]
+    # 创建策略总值map,余额总值map
+    total = {"5_10": 1.0, "nnn":1.0, "7":1.0}
+    balance = {"5_10": 1.0, "nnn":1.0, "7":1.0}
     # 记录持股
-    stock_hold_up10 = []
-    stock_hold_down10 = []
+    stock_hold_5_10 = []
     stock_hold_7 = []
-    # 记录收益
-    profit_up10 = [1.0, 1.0]
-    profit_down10 = [1.0, 1.0]
-    profit_7 = 1.0
+    stock_hold_nnn = []
+    # 回测开始
+    for day in cal_date:
+        # 持股不满时才需要计算
+        if len(stock_hold_5_10) < 5:
+            # 获取筛选结果
+            sel_5_10 = cal_5_10(data, day, tradingdate)
+            for i in range(0, 5 - len(stock_hold_5_10)):
+                stock_hold_5_10.append(HoldStock(sel_5_10[i]))        
+        if len(stock_hold_7) < 5:
+            # 获取筛选结果
+            sel_7 = cal_7(data, day)
+            for i in range(0, 5 - len(stock_hold_7)):
+                stock_hold_7.append(sel_7[i])
+        if len(stock_hold_nnn) < 5:
+            # 获取筛选结果
+            sel_nnn = cal_nnn(data, day, tradingdate)
+            for i in range(0, 5 - len(stock_hold_nnn)):
+                stock_hold_nnn.append(sel_nnn[i])
+            
+
+        
 
     # n天涨跌n%策略
     # 测试方法为每两个月按策略进行买入卖出，计算最终收益
@@ -115,35 +153,58 @@ def back_test(data, test_years, max_stockhold):
     return profit_up10, profit_down10
 
 
-# 
-def cal_profit(data, max_day, profit):
-    date = ""
+def cal_5_10(data, date, tradingdate):
+    # 提取最近五天数据
+    today_indexes = tradingdate.index(date)
+    cal_date = tradingdate[today_indexes - 4: today_indexes]
+    data = data[data['TradingDate'] in cal_date]
+    # 计算
+    filter_data = list()
     df_group = data.groupby(by="Symbol")
     stock_list = list(df_group.groups.keys())
-    dayn_profit = []
     for i in stock_list:
-        cur_data = data.loc[data['Symbol'] == i]
-        cur_data = cur_data.sort_values("TradingDate")
-        for j in range(cur_data.shape[0] - max_day + 1):
-            cur_profit = 0.0
-            max_profit = 0.0
-            date = cur_data.iloc[j]['TradingDate']
-            stock_id = cur_data.iloc[j]['Symbol']
-            # n天后同id才计算
-            if cur_data.iloc[j]['Symbol'] == cur_data.iloc[j + max_day - 1]['Symbol']:
-                for k in range(0, max_day): 
-                    if cur_data.shape[0] <= k + j + 1:
-                        continue
-                    day_data = cur_data.iloc[k + j]['ChangeRatio']
-                    cur_profit = (1 + cur_profit) * day_data + cur_profit
-                    if cur_profit >= max_profit:
-                        max_profit = cur_profit
-                dayn_profit.append([stock_id, date, cur_profit, max_profit])
-    
-    # 转为dataframe输出
-    df_profit = pd.DataFrame(dayn_profit, columns=['Symbol', 'TradingDate', 'ChangeRatio', 'max'])
+        cur_data = data[data['Symbol'] == i]
+        cur_data.sort_values(by='TradingDate', ascending=True)
+        # 计算
+        cur_p = 1.0
+        for j in range(0, 5):
+            cur_p *= (cur_data.iloc[j]['ChangeRatio'] + 1)
+        if cur_p - 1 > 0.1:
+            filter_data.append([i, cur_p - 1])
+    return filter_data
 
-    return df_profit
+
+# n天连涨策略
+def cal_nnn(data, date, tradingdate):
+    # 提取最近三天数据
+    today_indexes = tradingdate.index(date)
+    cal_date = tradingdate[today_indexes - 2: today_indexes]
+    data = data[data['TradingDate'] in cal_date]
+    # 计算
+    filter_data = list()
+    df_group = data.groupby(by="Symbol")
+    stock_list = list(df_group.groups.keys())
+    for i in stock_list:
+        cur_data = data[data['Symbol'] == i]
+        cur_data.sort_values(by='TradingDate', ascending=True)
+        if cur_data.iloc[0]['ChangeRatio'] > 0 and cur_data.iloc[1]['ChangeRatio'] > 0 and cur_data.iloc[2]['ChangeRatio'] > 0:
+            filter_data.append(cur_data.iloc[2]['Symbol'], cur_data.iloc[2]['TradingDate'])
+
+    return filter_data
+
+
+# 涨7策略
+def cal_7(data, date):
+    # 算法计算得到的数据
+    filter_data = list()
+    df_group = data.groupby(by="Symbol")
+    stock_list = list(df_group.groups.keys())
+    for i in stock_list:
+        cur_data = data[data['Symbol'] == i]
+        if cur_data.iloc[0]['ChangeRatio'] >= 0.07:
+            filter_data.append(cur_data.iloc[0]['Symbol'])
+
+    return filter_data
 
 
 # 对单个策略进行回测
@@ -198,8 +259,17 @@ if __name__ == "__main__":
     data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
     data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
+<<<<<<< HEAD
     tdata = data[data['Symbol'] == 600000]
     tdata = tdata.sort_values("TradingDate", ascending=False)
     date_list = tdata['TradingDate'].tolist
     
     # 评估公式: score = all_add(x - 1.06) / np.var(x)
+        testYear = 2
+    # 获取最近两年数据
+    tradedata = data[data['TradingDate'] >= today - testYear * 10000]
+    # 获取所有交易日
+    df_group = tradedata.groupby(by="TradingDate")
+    tradingdate = list(df_group.groups.keys()).sort()
+    # 回测
+    back_test(data, testYear, 5, tradingdate)
