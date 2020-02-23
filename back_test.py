@@ -68,7 +68,7 @@ def back_test(data, test_years, max_stockhold, tradingdate):
             # 获取筛选结果
             sel_5_10 = cal_5_10(data, day, tradingdate)
             for i in range(0, 5 - len(stock_hold_5_10)):
-                stock_hold_5_10.append(HoldStock(sel_5_10[i]))        
+                stock_hold_5_10.append(HoldStock(sel_5_10[i], day, ))        
         if len(stock_hold_7) < 5:
             # 获取筛选结果
             sel_7 = cal_7(data, day)
@@ -80,7 +80,7 @@ def back_test(data, test_years, max_stockhold, tradingdate):
             for i in range(0, 5 - len(stock_hold_nnn)):
                 stock_hold_nnn.append(sel_nnn[i])
             
-
+        # 新增股票也要计算当天盈利
         
 
     # n天涨跌n%策略
@@ -169,9 +169,13 @@ def cal_5_10(data, date, tradingdate):
         cur_p = 1.0
         for j in range(0, 5):
             cur_p *= (cur_data.iloc[j]['ChangeRatio'] + 1)
-        if cur_p - 1 > 0.1:
-            filter_data.append([i, cur_p - 1])
-    return filter_data
+        cur_p = cur_p - 1
+        if cur_p > 0.1:
+            filter_data.append([i, cur_p])
+    filter_data.sort(key=(lambda x: x[-1]))
+    ret_data = list()
+    for i in range(0, 5): ret_data.append(filter_data[i][0])
+    return ret_data
 
 
 # n天连涨策略
@@ -207,69 +211,17 @@ def cal_7(data, date):
     return filter_data
 
 
-# 对单个策略进行回测
-def single_test(data, test_years, trading_freq, max_hold, test_days):
-    start_date = today - test_years * 10000
-    use_data = data[data['TradingDate'] >= start_date - 200]
-    # 记录持股
-    stock_hold = []
-    # 记录收益
-    profit = [1.0, 1.0]
-
-    # n天涨跌n%策略
-    # 测试方法为每两个月按策略进行买入卖出，计算最终收益
-    # 一个月为买入期，一个月为卖出期
-    for i in range(0, test_years * 6):
-        # 计算收益
-        if not i == 0:  
-            cal_data = use_data[use_data['TradingDate'] <= start_date + i * 100]
-            cur_profit = [0.0, 0.0]
-            # 计算每只持有股票的最终/最高收益
-            for stock in stock_hold:
-                stock_data = cal_data[cal_data['Symbol'] == stock['Symbol']]
-                stock_data = stock_data[stock_data['TradingDate'] > stock['TradingDate']]
-                end_p, max_p = get_end_profit(stock_data)
-                cur_profit[0] += end_p
-                cur_profit[1] += max_p
-                
-            cur_profit[0] /= len(stock_hold)
-            cur_profit[1] /= len(stock_hold)
-            # 更新profit
-            profit[0] *= cur_profit[0]
-            profit[1] *= cur_profit[1]
-            
-        # 取出当前批次数据
-        cur_batch_data = use_data[use_data['TradingDate'] <= start_date + i * 100]
-        cur_batch_data = cur_batch_data[cur_batch_data['TradingDate'] >= start_date + (i - 1) * 100]
-
-        # 计算下一批次所选股票
-        candidate_stocks = cal_profit(cur_batch_data, test_days, 0.1)
-        # 先清空持股记录
-        stock_hold = []
-        # 随机选取五只
-        for _ in range(0, min(max_hold, candidate_stocks.shape[0])):
-            j = random.randint(0, candidate_stocks.shape[0])
-            while candidate_stocks.iloc[j] in stock_hold:
-                j = random.randint(0, candidate_stocks.shape[0])
-            stock_hold.append(candidate_stocks.iloc[j])
-
-    return profit
-
 if __name__ == "__main__":
     data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
     data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
-<<<<<<< HEAD
-    tdata = data[data['Symbol'] == 600000]
-    tdata = tdata.sort_values("TradingDate", ascending=False)
-    date_list = tdata['TradingDate'].tolist
     
-    # 评估公式: score = all_add(x - 1.06) / np.var(x)
-        testYear = 2
+    testYear = 2
     # 获取最近两年数据
     tradedata = data[data['TradingDate'] >= today - testYear * 10000]
     # 获取所有交易日
     df_group = tradedata.groupby(by="TradingDate")
     tradingdate = list(df_group.groups.keys()).sort()
     # 回测
+    # 评估公式: score = all_add(x - 1.06) / np.var(x)
     back_test(data, testYear, 5, tradingdate)
