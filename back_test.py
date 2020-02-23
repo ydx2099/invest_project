@@ -13,12 +13,19 @@ today = int(time.strftime("%Y%m%d", time.localtime()))
 
 
 class HoldStock():
+    def cal_sell(self):
+        0
+
+
     def __init__(self, symbol:str, date:str, amount:float, data):
         self.symbol = symbol
         self.startdate = date
         self.amount = amount
         self.p = 1.0
         self.data = data
+        self.sell_day = 0
+        self.cal_sell()
+        
 
     def __del__(self):
         del self.symbol
