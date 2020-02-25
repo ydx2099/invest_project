@@ -426,7 +426,7 @@ if __name__ == "__main__":
     data = pd.read_csv(data_path, sep=',', low_memory=False)
 
     # # 合并下载数据出错时简单回退
-    # data = data[data['TradingDate'] <= 20200205]
+    # data = data[data['TradingDate'] <= 20200209]
     # data.to_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv', index=False)
     
     # 精简数据
@@ -464,8 +464,8 @@ if __name__ == "__main__":
     # print(up)
     # print(down)
 
-    # 涨7策略
-    cal_7(yestoday_data, last_tradingdate)
+    # # 涨7策略
+    # cal_7(yestoday_data, last_tradingdate)
 
     # 连涨策略
     cal_nnn(last_n_data, last_tradingdate)

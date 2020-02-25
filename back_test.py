@@ -13,8 +13,12 @@ today = int(time.strftime("%Y%m%d", time.localtime()))
 
 
 class HoldStock():
+    # 计算卖出日期与利率
     def cal_sell(self):
-        0
+        self.sell_day = 0
+        for i in range(0, 20):
+            
+
 
 
     def __init__(self, symbol:str, date:str, amount:float, data):
@@ -33,6 +37,7 @@ class HoldStock():
         del self.amount
         del self.p
         del self.data
+        del self.sell_day
     
 
 # 根据给定数据计算最终收益
