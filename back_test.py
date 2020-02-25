@@ -14,7 +14,11 @@ today = int(time.strftime("%Y%m%d", time.localtime()))
 
 class HoldStock():
     def cal_sell(self):
-        0
+        for i in range(0, len(self.data)):
+            self.p *= data.iloc[i]["ChangeRatio"]
+            if self.p > 1.15:
+                self.enddate = data.iloc[i]["TradingDate"]
+                break
 
 
     def __init__(self, symbol:str, date:str, amount:float, data):
