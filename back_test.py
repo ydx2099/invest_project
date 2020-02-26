@@ -75,6 +75,8 @@ def back_test(data, test_years, max_stockhold, tradingdate):
     stock_hold_5_10 = []
     stock_hold_7 = []
     stock_hold_nnn = []
+    # 记录每次卖出收益
+    sell = {"5_10": [], "7": [], "nnn": []}
     # 回测开始
     for day in cal_date:
         # 持股不满时才需要计算
