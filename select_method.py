@@ -17,12 +17,12 @@ def max_select(path):
     for i in range(0, 15):
         print(int(data.iloc[i]['Symbol']))
 
-# # 7
-# print('this is 7')
-# random_select(24)
-# nnn
-print('this is nnn')
-random_select(498)
+# 7
+print('this is 7')
+random_select(108)
+# # nnn
+# print('this is nnn')
+# random_select(498)
 # 5天涨10
 # print('this is 5_10')
 # max_select(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\test\5_10\test_data\20200214.csv')

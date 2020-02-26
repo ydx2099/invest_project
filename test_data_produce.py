@@ -445,7 +445,7 @@ def cal_5_10(data):
     cal_date = list(data.groupby(by="TradingDate").groups.keys())[-1]
     # 转为dataframe输出
     filter_df = pd.DataFrame(filter_data, columns=['Symbol', 'Profit'])
-    filter_df.to_csv(_path_5_10 + "/test/" + str(cal_date) + '.csv', index=False)             
+    filter_df.to_csv(_path_5_10 + "test_data/" + str(cal_date) + '.csv', index=False)             
 
 
 if __name__ == "__main__":
