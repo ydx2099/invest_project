@@ -15,18 +15,12 @@ today = int(time.strftime("%Y%m%d", time.localtime()))
 class HoldStock():
     # 计算卖出日期与利率
     def cal_sell(self):
-<<<<<<< HEAD
-        for i in range(0, len(self.data)):
-            self.p *= data.iloc[i]["ChangeRatio"]
-            if self.p > 1.15:
-                self.enddate = data.iloc[i]["TradingDate"]
-                break
-=======
-        self.sell_day = 0
         for i in range(0, 20):
-            
-
->>>>>>> ee877c6dd387fb107627a28a503f9b85330b7795
+            self.p *= data.iloc[i]["ChangeRatio"]
+            self.enddate = data.iloc[i]["TradingDate"]
+            # 满足条件提前终止循环
+            if self.p > 1.15:
+                break
 
 
     def __init__(self, symbol:str, date:str, amount:float, data):
@@ -88,89 +82,53 @@ def back_test(data, test_years, max_stockhold, tradingdate):
             # 获取筛选结果
             sel_5_10 = cal_5_10(data, day, tradingdate)
             for i in range(0, 5 - len(stock_hold_5_10)):
-                stock_hold_5_10.append(HoldStock(sel_5_10[i], day, ))        
+                stock_data = data[data['Symbol'] == sel_5_10[i]]
+                stock_data = stock_data['TradingDate' >= day]
+                spend = min(balance["5_10"], total["5_10"] / 5)
+                balance["5_10"] -= spend
+                stock_hold_5_10.append(HoldStock(sel_5_10[i], day, spend, stock_data))
         if len(stock_hold_7) < 5:
             # 获取筛选结果
             sel_7 = cal_7(data, day)
             for i in range(0, 5 - len(stock_hold_7)):
-                stock_hold_7.append(sel_7[i])
+                stock_data = data[data['Symbol'] == sel_7[i]]
+                stock_data = stock_data['TradingDate' >= day]
+                spend = min(balance["7"], total["7"] / 5)
+                balance["7"] -= spend
+                stock_hold_7.append(HoldStock(sel_7[i], day, spend, stock_data))
         if len(stock_hold_nnn) < 5:
             # 获取筛选结果
             sel_nnn = cal_nnn(data, day, tradingdate)
             for i in range(0, 5 - len(stock_hold_nnn)):
-                stock_hold_nnn.append(sel_nnn[i])
+                stock_data = data[data['Symbol'] == sel_nnn[i]]
+                stock_data = stock_data['TradingDate' >= day]
+                spend = min(balance["nnn"], total["nnn"] / 5)
+                balance["nnn"] -= spend
+                stock_hold_nnn.append(HoldStock(sel_nnn[i], day, spend, stock_data))
             
-        # 新增股票也要计算当天盈利
-        
+        # 计算卖出
+        for hold in stock_hold_5_10:
+            if day == hold.enddate:
+                total["5_10"] += hold.amount * hold.p
+                balance["5_10"] += hold.amount * hold.p
+                stock_hold_5_10.remove(hold)
+                del hold
 
-    # n天涨跌n%策略
-    # 测试方法为每两个月按策略进行买入卖出，计算最终收益
-    # 一个月为买入期，一个月为卖出期
-    for i in range(0, test_years * 6):
-        # 计算收益
-        if not i == 0:  
-            cal_data = use_data[use_data['TradingDate'] <= start_date + i * 100]
-            cur_profit_up10 = [0.0, 0.0]
-            cur_profit_downc10 = [0.0, 0.0]
-            # 计算每只持有股票的最终/最高收益
-            for stock in stock_hold_up10:
-                stock_data = cal_data[cal_data['Symbol'] == stock['Symbol']]
-                stock_data = stock_data[stock_data['TradingDate'] > stock['TradingDate']]
-                end_p, max_p = get_end_profit(stock_data)
-                cur_profit_up10[0] += end_p
-                cur_profit_up10[1] += max_p
-                
-            for stock in stock_hold_down10:
-                stock_data = cal_data[cal_data['Symbol'] == stock['Symbol']]
-                stock_data = stock_data[stock_data['TradingDate'] > stock['TradingDate']]
-                end_p, max_p = get_end_profit(stock_data)
-                cur_profit_downc10[0] += end_p
-                cur_profit_downc10[1] += max_p
+        for hold in stock_hold_7:
+            if day == hold.enddate:
+                total["7"] += hold.amount * hold.p
+                balance["7"] += hold.amount * hold.p
+                stock_hold_7.remove(hold)
+                del hold
 
-            cur_profit_up10[0] /= len(stock_hold_up10)
-            cur_profit_up10[1] /= len(stock_hold_up10)
-            cur_profit_downc10[0] /= len(stock_hold_down10)
-            cur_profit_downc10[1] /= len(stock_hold_up10)
-            # 更新profit
-            profit_up10[0] *= cur_profit_up10[0]
-            profit_up10[1] *= cur_profit_up10[1]
-            profit_down10[0] *= cur_profit_downc10[0]
-            profit_down10[1] *= cur_profit_downc10[1]
-            
-        # 取出当前批次数据
-        cur_batch_data = use_data[use_data['TradingDate'] <= start_date + i * 100]
-        cur_batch_data = cur_batch_data[cur_batch_data['TradingDate'] >= start_date + (i - 1) * 100]
-
-        # 计算下一批次所选股票
-        simu_cal5_data = cal_profit(cur_batch_data, 5, True)
-        simu_cal5_up10_data = simu_cal5_data[simu_cal5_data['ChangeRatio'] >= 0.1]
-        simu_cal5_down10_data = simu_cal5_data[simu_cal5_data['ChangeRatio'] <= -0.1]
-        # simu_cal10_data = cal_profit(cur_batch_data, 10, True)
-        # 按最终涨幅排序，从高到低
-        simu_cal5_up10_data = simu_cal5_up10_data.sort_values(by='ChangeRatio', ascending=False)
-        simu_cal5_down10_data = simu_cal5_down10_data.sort_values(by='ChangeRatio', ascending=False)
-        # 先清空持股记录
-        stock_hold_up10 = []
-        stock_hold_down10 = []
-        # 持有股票
-        for j in range(0, min(max_stockhold, simu_cal5_up10_data.shape[0])):
-            stock_hold_up10.append(simu_cal5_up10_data.iloc[j])
-
-        for j in range(0, min(max_stockhold, simu_cal5_down10_data.shape[0])):
-            stock_hold_down10.append(simu_cal5_down10_data.iloc[j])
-
-
-
-    # # 涨7策略执行短线交易，每当拥有现金即进行交易
-    # # 设置最大持有天数，暂为10个交易日
-    # # 测试为简便起见，以10个交易日为一个交易周期
-    # df_group = data.groupby(by="TradingDate")
-    # date_list = list(df_group.groups.keys())
-    # for i in date_list:
-    #     cur_day_data = use_data[use_data['TradingDate'] == i]
-    #     simu_7_data = cal_7(cur_batch_data, i)
+        for hold in stock_hold_nnn:
+            if day == hold.enddate:
+                total["nnn"] += hold.amount * hold.p
+                balance["nnn"] += hold.amount * hold.p
+                stock_hold_nnn.remove(hold)
+                del hold
    
-    return profit_up10, profit_down10
+    return
 
 
 def cal_5_10(data, date, tradingdate):
