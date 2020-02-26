@@ -420,6 +420,31 @@ def back_test(data, test_years, max_stockhold, cal_days):
         
     return profit_up10, profit_down10
 
+# 计算今天的5-10策略
+def cal_5_10(data, date, tradingdate):
+    # 提取最近五天数据
+    today_indexes = tradingdate.index(date)
+    cal_date = tradingdate[today_indexes - 4: today_indexes]
+    data = data[data['TradingDate'] in cal_date]
+    # 计算
+    filter_data = list()
+    df_group = data.groupby(by="Symbol")
+    stock_list = list(df_group.groups.keys())
+    for i in stock_list:
+        cur_data = data[data['Symbol'] == i]
+        cur_data.sort_values(by='TradingDate', ascending=True)
+        # 计算
+        cur_p = 1.0
+        for j in range(0, 5):
+            cur_p *= (cur_data.iloc[j]['ChangeRatio'] + 1)
+        cur_p = cur_p - 1
+        if cur_p > 0.1:
+            filter_data.append([i, cur_p])
+    filter_data.sort(key=(lambda x: x[-1]))
+    ret_data = list()
+    for i in range(0, 5): ret_data.append(filter_data[i][0])
+    return ret_data
+
 
 if __name__ == "__main__":
     data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
@@ -464,8 +489,8 @@ if __name__ == "__main__":
     # print(up)
     # print(down)
 
-    # # 涨7策略
-    # cal_7(yestoday_data, last_tradingdate)
+    # 涨7策略
+    cal_7(yestoday_data, last_tradingdate)
 
     # 连涨策略
     cal_nnn(last_n_data, last_tradingdate)
@@ -488,6 +513,6 @@ if __name__ == "__main__":
     # LGBM
     # machine_learning()
 
-    # 先执行需要多天数据的策略再取短期数据
+    # # 先执行需要多天数据的策略再取短期数据
     # test_data_produce(rec_data, 5, 0.1, _path_5_10, True)
     print("is end")
