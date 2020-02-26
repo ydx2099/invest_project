@@ -420,12 +420,8 @@ def back_test(data, test_years, max_stockhold, cal_days):
         
     return profit_up10, profit_down10
 
-# 计算今天的5-10策略
-def cal_5_10(data, date, tradingdate):
-    # 提取最近五天数据
-    today_indexes = tradingdate.index(date)
-    cal_date = tradingdate[today_indexes - 4: today_indexes]
-    data = data[data['TradingDate'] in cal_date]
+# 计算最近一个交易日的5-10策略5
+def cal_5_10(data):
     # 计算
     filter_data = list()
     df_group = data.groupby(by="Symbol")
@@ -435,15 +431,21 @@ def cal_5_10(data, date, tradingdate):
         cur_data.sort_values(by='TradingDate', ascending=True)
         # 计算
         cur_p = 1.0
-        for j in range(0, 5):
-            cur_p *= (cur_data.iloc[j]['ChangeRatio'] + 1)
-        cur_p = cur_p - 1
-        if cur_p > 0.1:
-            filter_data.append([i, cur_p])
+        data_size = cur_data.shape[0]
+        if data_size >= 5:
+            for j in range(0, 5):
+                # 取最近五天数据
+                cur_p *= (cur_data.iloc[data_size + j - 5]['ChangeRatio'] + 1)
+            cur_p = cur_p - 1
+            if cur_p > 0.1:
+                filter_data.append([i, cur_p])
+    # 按利率从高到低排序
     filter_data.sort(key=(lambda x: x[-1]))
-    ret_data = list()
-    for i in range(0, 5): ret_data.append(filter_data[i][0])
-    return ret_data
+    # 获取计算日期
+    cal_date = list(data.groupby(by="TradingDate").groups.keys())[-1]
+    # 转为dataframe输出
+    filter_df = pd.DataFrame(filter_data, columns=['Symbol', 'Profit'])
+    filter_df.to_csv(_path_5_10 + "/test/" + str(cal_date) + '.csv', index=False)             
 
 
 if __name__ == "__main__":
@@ -495,7 +497,8 @@ if __name__ == "__main__":
     # 连涨策略
     cal_nnn(last_n_data, last_tradingdate)
 
-    # # n天涨n策略
+    # n天涨n策略
+    cal_5_10(rec_data)
 
     # # test 5days, rate -5, confirm 50days
     # test_data_produce(rec_data, 5, -0.05, path_5_5, False)

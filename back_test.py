@@ -134,10 +134,6 @@ def back_test(data, test_years, max_stockhold, tradingdate):
 
 
 def cal_5_10(data, date, tradingdate):
-    # 提取最近五天数据
-    today_indexes = tradingdate.index(date)
-    cal_date = tradingdate[today_indexes - 4: today_indexes]
-    data = data[data['TradingDate'] in cal_date]
     # 计算
     filter_data = list()
     df_group = data.groupby(by="Symbol")

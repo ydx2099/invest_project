@@ -21,4 +21,4 @@ def concat_data(date):
     stock_data.to_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv', index=False)
 
 
-concat_data("20200225")
+concat_data("20200226")
