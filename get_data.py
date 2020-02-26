@@ -12,11 +12,11 @@ def get_data(date):
     pro = ts.pro_api()
     df = pro.daily(trade_date=date)
     # 只要这三个
-    df = df[['ts_code', 'trade_date', 'change']]
+    df = df[['ts_code', 'trade_date', 'pct_chg']]
     # 去后缀
     df['ts_code'] = df.apply(lambda row: row['ts_code'].split(".")[0], axis=1)
     # 利润率去百分号
-    df['change'] = df.apply(lambda row: row['change'] / 100, axis=1)
+    df['pct_chg'] = df.apply(lambda row: row['pct_chg'] / 100, axis=1)
     df.columns = ['Symbol', 'TradingDate', 'ChangeRatio']
 
     df.to_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\add_data\STK_MKT_Dalyr.csv', sep='\t', index=False)
