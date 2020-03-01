@@ -15,33 +15,35 @@ today = int(time.strftime("%Y%m%d", time.localtime()))
 class HoldStock():
     # 计算卖出日期与利率
     def cal_sell(self):
-        if self.data.shape[0] >= 10:
-            for i in range(0, 10):
-                self.p *= (self.data.iloc[i]["ChangeRatio"] + 1) * self.p
+        hold_max_day = 10
+        sell_max_profit = 1.2
+        sell_min_profit = 0.95
+        if self.data.shape[0] >= hold_max_day:
+            for i in range(0, hold_max_day):
+                self.p *= (self.data.iloc[i]["ChangeRatio"] + 1)
                 self.enddate = self.data.iloc[i]["TradingDate"]
                 # 满足条件提前终止循环
-                if self.p > 1.10:
+                if self.p > sell_max_profit:
+                    break
+                if self.p < sell_min_profit:
                     break
 
 
-    def __init__(self, symbol:str, date:str, amount:float, data):
+    def __init__(self, symbol:str, amount:float, data):
         self.symbol = symbol
-        self.startdate = date
         self.amount = amount
         self.p = 1.0
         self.data = data
-        self.sell_day = 0
         self.enddate = 0
         self.cal_sell()
         
 
     def __del__(self):
         del self.symbol
-        del self.startdate
         del self.amount
         del self.p
         del self.data
-        del self.sell_day
+        del self.enddate
     
 
 # 根据给定数据计算最终收益
@@ -84,28 +86,28 @@ def back_test(data, test_years, max_stockhold, tradingdate):
             sel_5_10 = cal_5_10(data, day, tradingdate)
             for i in range(0, 5 - len(stock_hold_5_10)):
                 stock_data = data[data['Symbol'] == sel_5_10[i]]
-                stock_data = stock_data[stock_data['TradingDate'] >= day]
+                stock_data = stock_data[stock_data['TradingDate'] > day]
                 spend = min(balance["5_10"], total["5_10"] / 5)
                 balance["5_10"] -= spend
-                stock_hold_5_10.append(HoldStock(sel_5_10[i], day, spend, stock_data))
+                stock_hold_5_10.append(HoldStock(sel_5_10[i], spend, stock_data))
         if len(stock_hold_7) < 5:
             # 获取筛选结果
             sel_7 = cal_7(data, day)
             for i in range(0, 5 - len(stock_hold_7)):
                 stock_data = data[data['Symbol'] == sel_7[i]]
-                stock_data = stock_data[stock_data['TradingDate'] >= day]
+                stock_data = stock_data[stock_data['TradingDate'] > day]
                 spend = min(balance["7"], total["7"] / 5)
                 balance["7"] -= spend
-                stock_hold_7.append(HoldStock(sel_7[i], day, spend, stock_data))
+                stock_hold_7.append(HoldStock(sel_7[i], spend, stock_data))
         if len(stock_hold_nnn) < 5:
             # 获取筛选结果
             sel_nnn = cal_nnn(data, day, tradingdate)
             for i in range(0, 5 - len(stock_hold_nnn)):
                 stock_data = data[data['Symbol'] == sel_nnn[i][0]]
-                stock_data = stock_data[stock_data['TradingDate'] >= day]
+                stock_data = stock_data[stock_data['TradingDate'] > day]
                 spend = min(balance["nnn"], total["nnn"] / 5)
                 balance["nnn"] -= spend
-                stock_hold_nnn.append(HoldStock(sel_nnn[i], day, spend, stock_data))
+                stock_hold_nnn.append(HoldStock(sel_nnn[i], spend, stock_data))
             
         # 计算卖出
         for hold in stock_hold_5_10:
@@ -222,6 +224,10 @@ if __name__ == "__main__":
     np5_10 = np.array(p["5_10"])
     np7 = np.array(p["7"])
     npnnn = np.array(p["nnn"])
+    print("mean:")
+    print(np.mean(np5_10))
+    print(np.mean(np7))
+    print(np.mean(npnnn))
     score5_10 = np.mean(np5_10) / np.var(np5_10)
     score7 = np.mean(np7) / np.var(np7)
     scorennn = np.mean(npnnn) / np.var(npnnn)
