@@ -15,8 +15,8 @@ today = int(time.strftime("%Y%m%d", time.localtime()))
 class HoldStock():
     # 计算卖出日期与利率
     def cal_sell(self):
-        hold_max_day = 10
-        sell_max_profit = 1.2
+        hold_max_day = 15
+        sell_max_profit = 1.15
         sell_min_profit = 0.95
         if self.data.shape[0] >= hold_max_day:
             for i in range(0, hold_max_day):
@@ -202,7 +202,7 @@ def cal_7(data, date):
 
 
 if __name__ == "__main__":
-    data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
+    data_path = r'D:\wuziyang\workfile\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
     data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
     
