@@ -15,9 +15,9 @@ today = int(time.strftime("%Y%m%d", time.localtime()))
 class HoldStock():
     # 计算卖出日期与利率
     def cal_sell(self):
-        hold_max_day = 15
-        sell_max_profit = 1.15
-        sell_min_profit = 0.95
+        hold_max_day = 5
+        sell_max_profit = 1.13
+        sell_min_profit = 0.93
         if self.data.shape[0] >= hold_max_day:
             for i in range(0, hold_max_day):
                 self.p *= (self.data.iloc[i]["ChangeRatio"] + 1)
@@ -103,11 +103,12 @@ def back_test(data, test_years, max_stockhold, tradingdate):
             # 获取筛选结果
             sel_nnn = cal_nnn(data, day, tradingdate)
             for i in range(0, 5 - len(stock_hold_nnn)):
-                stock_data = data[data['Symbol'] == sel_nnn[i][0]]
-                stock_data = stock_data[stock_data['TradingDate'] > day]
-                spend = min(balance["nnn"], total["nnn"] / 5)
-                balance["nnn"] -= spend
-                stock_hold_nnn.append(HoldStock(sel_nnn[i], spend, stock_data))
+                if len(sel_nnn) > i:
+                    stock_data = data[data['Symbol'] == sel_nnn[i][0]]
+                    stock_data = stock_data[stock_data['TradingDate'] > day]
+                    spend = min(balance["nnn"], total["nnn"] / 5)
+                    balance["nnn"] -= spend
+                    stock_hold_nnn.append(HoldStock(sel_nnn[i], spend, stock_data))
             
         # 计算卖出
         for hold in stock_hold_5_10:
@@ -156,7 +157,7 @@ def cal_5_10(data, date, tradingdate):
             for j in range(0, 5):
                 cur_p *= (cur_data.iloc[j]['ChangeRatio'] + 1)
             cur_p = cur_p - 1
-            if cur_p > 0.1:
+            if cur_p > 0.1 and cur_p < 0.25:
                 filter_data.append([i, cur_p])
     filter_data.sort(key=(lambda x: x[-1]))
     ret_data = list()
@@ -166,20 +167,20 @@ def cal_5_10(data, date, tradingdate):
 
 # n天连涨策略
 def cal_nnn(data, date, tradingdate):
-    # 提取最近三天数据
+    # 提取最近四天数据
     today_indexes = tradingdate.index(date)
-    cal_date = tradingdate[today_indexes - 2: today_indexes + 1]
+    cal_date = tradingdate[today_indexes - 3: today_indexes + 1]
     data = data[data['TradingDate'] >= cal_date[0]]
-    data = data[data['TradingDate'] <= cal_date[2]]
+    data = data[data['TradingDate'] <= cal_date[3]]
     # 计算
     filter_data = list()
     df_group = data.groupby(by="Symbol")
     stock_list = list(df_group.groups.keys())
     for i in stock_list:
         cur_data = data[data['Symbol'] == i]
-        if cur_data.shape[0] == 3:
+        if cur_data.shape[0] == 4:
             cur_data.sort_values(by='TradingDate', ascending=True)
-            if cur_data.iloc[0]['ChangeRatio'] > 0 and cur_data.iloc[1]['ChangeRatio'] > 0 and cur_data.iloc[2]['ChangeRatio'] > 0:
+            if cur_data.iloc[0]['ChangeRatio'] < 0 and cur_data.iloc[1]['ChangeRatio'] > 0 and cur_data.iloc[2]['ChangeRatio'] > 0 and cur_data.iloc[3]['ChangeRatio'] > 0:
                 filter_data.append([cur_data.iloc[2]['Symbol'], cur_data.iloc[2]['TradingDate']])
 
     return filter_data
