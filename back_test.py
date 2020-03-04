@@ -18,13 +18,14 @@ today = int(time.strftime("%Y%m%d", time.localtime()))
 class HoldStock():
     # 计算卖出日期与利率
     def cal_sell(self):
-        hold_max_day = 5
-        sell_max_profit = 1.15
-        sell_min_profit = 0.93
+        hold_max_day = 7
+        sell_max_profit = 1.2
+        sell_min_profit = 0.98
         if self.data.shape[0] >= hold_max_day:
             for i in range(0, hold_max_day):
                 self.p *= (self.data.iloc[i]["ChangeRatio"] + 1)
                 self.enddate = self.data.iloc[i]["TradingDate"]
+                self.holdday += 1
                 # 满足条件提前终止循环
                 if self.p > sell_max_profit:
                     break
@@ -38,6 +39,7 @@ class HoldStock():
         self.p = 1.0
         self.data = data
         self.enddate = 0
+        self.holdday = 0
         self.cal_sell()
         
 
@@ -106,6 +108,7 @@ def back_test(data, test_years, max_stockhold, tradingdate):
         if len(stock_hold_nnn) < 5:
             # 获取筛选结果
             sel_nnn = cal_nnn(data, day, tradingdate)
+            # sel_nnn = cal_uuu(data, day, tradingdate)
             for i in range(0, 5 - len(stock_hold_nnn)):
                 if len(sel_nnn) > i:
                     stock_data = data[data['Symbol'] == sel_nnn[i][0]]
@@ -170,6 +173,28 @@ def cal_5_10(data, date, tradingdate, high_limit, low_limit):
 
 # n天连涨策略
 def cal_nnn(data, date, tradingdate):
+    # 提取最近3天数据
+    today_indexes = tradingdate.index(date)
+    cal_date = tradingdate[today_indexes - 2: today_indexes + 1]
+    data = data[data['TradingDate'] >= cal_date[0]]
+    data = data[data['TradingDate'] <= cal_date[2]]
+    # 计算
+    filter_data = list()
+    df_group = data.groupby(by="Symbol")
+    stock_list = list(df_group.groups.keys())
+    for i in stock_list:
+        cur_data = data[data['Symbol'] == i]
+        if cur_data.shape[0] == 3:
+            cur_data.sort_values(by='TradingDate', ascending=True)
+            if cur_data.iloc[0]['ChangeRatio'] > 0 and cur_data.iloc[1]['ChangeRatio'] > 0 and cur_data.iloc[2]['ChangeRatio'] > 0:
+                filter_data.append([cur_data.iloc[2]['Symbol'], cur_data.iloc[2]['TradingDate']])
+
+    random.shuffle(filter_data)
+    return filter_data
+
+
+# n天止跌策略
+def cal_uuu(data, date, tradingdate):
     # 提取最近四天数据
     today_indexes = tradingdate.index(date)
     cal_date = tradingdate[today_indexes - 3: today_indexes + 1]
@@ -183,7 +208,7 @@ def cal_nnn(data, date, tradingdate):
         cur_data = data[data['Symbol'] == i]
         if cur_data.shape[0] == 4:
             cur_data.sort_values(by='TradingDate', ascending=True)
-            if cur_data.iloc[0]['ChangeRatio'] < 0 and cur_data.iloc[1]['ChangeRatio'] > 0 and cur_data.iloc[2]['ChangeRatio'] > 0 and cur_data.iloc[3]['ChangeRatio'] > 0:
+            if cur_data.iloc[0]['ChangeRatio'] < 0 and cur_data.iloc[1]['ChangeRatio'] < 0 and cur_data.iloc[2]['ChangeRatio'] < 0 and cur_data.iloc[3]['ChangeRatio'] > 0:
                 filter_data.append([cur_data.iloc[2]['Symbol'], cur_data.iloc[2]['TradingDate']])
 
     random.shuffle(filter_data)
@@ -210,16 +235,16 @@ def cal_7(data, date):
 if __name__ == "__main__":
     print("start...")
 
-    data_path = r'D:\wuziyang\workfile\stock_latest.csv'
+    data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
     data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
     
-    testYear = 2
+    testYear = 4
     stockhold = 5
     # 用于test nnn
     for i in range(0, testYear):
         tradedata = data[data['TradingDate'] >= 10000*(2020-i) + 100]
-        tradedata = tradedata[tradedata['TradingDate'] <= 10000*(2020-i) + 400]
+        tradedata = tradedata[tradedata['TradingDate'] <= 10000*(2020-i) + 315]
     # 用于test7
     # tradedata = data[data['TradingDate'] >= today - (testYear + 2) * 10000]
     # tradedata = tradedata[tradedata['TradingDate'] <= today - testYear * 10000]
