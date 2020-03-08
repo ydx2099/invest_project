@@ -14,11 +14,22 @@ def concat_data(date):
 
     # stock_data1['TradingDate'] = stock_data1['TradingDate'].map(lambda x: x.replace('-', ''))
     stock_data = stock_data.append(stock_data1)
-    stock_data.drop_duplicates(subset=['Symbol', 'TradingDate'], inplace=True)
+    # stock_data.drop_duplicates(subset=['Symbol', 'TradingDate'], inplace=True)
 
     stock_data = stock_data.sort_values(['Symbol', 'TradingDate'], ascending=True)
 
     stock_data.to_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv', index=False)
 
 
-concat_data("20200227")
+stock_data = pd.read_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stock_latest.csv', sep=',')
+now_data = pd.read_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv', sep=',')
+# 获取所有交易日
+df = now_data.groupby(by="TradingDate")
+maxday = max(list(df.groups.keys()))
+
+# 获取所有交易日
+df_group = stock_data.groupby(by="TradingDate")
+tradingdate = list(df_group.groups.keys())
+tradingdate = [e for e in tradingdate if e > maxday]
+for d in tradingdate:
+    concat_data(str(int(d)))
