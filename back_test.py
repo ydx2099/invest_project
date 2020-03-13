@@ -21,27 +21,30 @@ class HoldStock():
     def cal_sell(self):
         hold_max_day = 5
         sell_max_profit = 1.15
-        sell_min_profit = 0.93
-        max_p = 1.0
-        drop_limit = 0.03
-        if self.data.shape[0] >= hold_max_day:
-            for i in range(0, hold_max_day):
+        sell_min_profit = 0.95
+        drop_limit = 0.02
+        max_profit = 1.0
+        if self.data.shape[0] >= hold_max_day + 1:
+            for i in range(1, hold_max_day):
                 self.p *= (self.data.iloc[i]["ChangeRatio"] + 1)
-                if self.p > max_p:
-                    max_p = self.p
+                if self.p > max_profit:
+                    max_profit = self.p
                 self.enddate = self.data.iloc[i]["TradingDate"]
                 self.holdday += 1
-                # 满足条件提前终止循环
+                # 满足条件提前终止循环,由于backtest逻辑，因此不需要处理当日卖出情况
                 if self.p > sell_max_profit:
+                    # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
                     break
-                if self.p < (sell_min_profit if max_p == 1.0 else max_p - drop_limit):
+                if self.p < (max_profit - drop_limit if max_profit > 1 else sell_min_profit):
+                # if self.p < sell_min_profit:
+                    # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
                     break
 
 
     def __init__(self, symbol:str, amount:float, data):
         self.symbol = symbol
         self.amount = amount
-        self.p = 1.0
+        self.p = 1.0 * data.iloc[0]['Close'] / data.iloc[1]['Open']
         self.data = data
         self.enddate = 0
         self.holdday = 0
@@ -78,22 +81,25 @@ def get_end_profit(data):
 # 需要一种方法衡量策略的风险
 def back_test(data, test_years, max_stockhold, tradingdate):
     # 计算日期
-    cal_date = tradingdate[4:-1]
+    cal_date = tradingdate[4:-2]
+    # #
+    # all_count = 0
+    # all_contain = 0
     # 创建策略总值map,余额总值map
     total = {"5_10": 1.0, "nnn":1.0, "7":1.0}
     balance = {"5_10": 1.0, "nnn":1.0, "7":1.0}
     # 记录持股
-    # stock_hold_5_10 = []
+    stock_hold_5_10 = []
     stock_hold_7 = []
-    # stock_hold_nnn = []
+    stock_hold_nnn = []
     # 记录每次卖出收益
     sell = {"5_10": [], "7": [], "nnn": []}
     # 回测开始
-    for day in cal_date:
+    for day in cal_date[:-2]:
         # 持股不满时才需要计算
         # if len(stock_hold_5_10) < 5:
         #     # 获取筛选结果
-        #     sel_5_10 = cal_5_10(data, day, tradingdate, -0.1, -0.16)
+        #     sel_5_10 = cal_5_10(data, day, tradingdate, 0.18, 0.1)
         #     for i in range(0, 5 - len(stock_hold_5_10)):
         #         if len(sel_5_10) > i:
         #             stock_data = data[data['Symbol'] == sel_5_10[i]]
@@ -103,16 +109,18 @@ def back_test(data, test_years, max_stockhold, tradingdate):
         #             stock_hold_5_10.append(HoldStock(sel_5_10[i], spend, stock_data))
         if len(stock_hold_7) < 5:
             # 获取筛选结果
-            sel_7 = cal_7(data, day)
-            for i in range(0, 5 - len(stock_hold_7)):
+            sel_7 = cal_7(data, day, cal_date[cal_date.index(day) + 1])
+            # all_count += temp_count
+            # all_contain += temp_contain
+            for i in range(0, min(len(sel_7), 5 - len(stock_hold_7))):
                 stock_data = data[data['Symbol'] == sel_7[i]]
-                stock_data = stock_data[stock_data['TradingDate'] > day]
+                stock_data = stock_data[stock_data['TradingDate'] >= day]
                 spend = min(balance["7"], total["7"] / 5)
                 balance["7"] -= spend
                 stock_hold_7.append(HoldStock(sel_7[i], spend, stock_data))
         # if len(stock_hold_nnn) < 5:
         #     # 获取筛选结果
-        #     sel_nnn = cal_nnn(data, day, tradingdate)
+        #     sel_nnn = cal_uuu(data, day, tradingdate)
         #     # sel_nnn = cal_uuu(data, day, tradingdate)
         #     for i in range(0, 5 - len(stock_hold_nnn)):
         #         if len(sel_nnn) > i:
@@ -146,7 +154,9 @@ def back_test(data, test_years, max_stockhold, tradingdate):
         #         sell["nnn"].append(hold.p)
         #         stock_hold_nnn.remove(hold)
         #         del hold
-   
+
+    # print("contain rate:" + str(all_contain / all_count))
+
     return sell, total
 
 
@@ -154,23 +164,31 @@ def cal_5_10(data, date, tradingdate, high_limit, low_limit):
     # 获取对应日期数据
     today_indexes = tradingdate.index(date)
     cal_date = tradingdate[today_indexes - 4: today_indexes + 1]
-    data = data[data['TradingDate'] >= cal_date[0]]
-    data = data[data['TradingDate'] <= cal_date[4]]
+    today_data = data[data['TradingDate'] >= cal_date[0]]
+    today_data = today_data[today_data['TradingDate'] <= cal_date[4]]
+    tommorow_data = data[data['TradingDate'] == tradingdate[today_indexes + 1]]
     # 计算
     filter_data = list()
     df_group = data.groupby(by="Symbol")
     stock_list = list(df_group.groups.keys())
     for i in stock_list:
-        cur_data = data[data['Symbol'] == i]
+        cur_data = today_data[today_data['Symbol'] == i]
+        next_data = tommorow_data[tommorow_data['Symbol'] == i]
         cur_data.sort_values(by='TradingDate', ascending=True)
         # 计算
         cur_p = 1.0
-        if cur_data.shape[0] == 5:
+        if next_data.shape[0] != 0 and cur_data.shape[0] == 5:
+            cur_c = cur_data.iloc[0]['Close']
+            next_h = next_data.iloc[0]['Max']
+            next_l = next_data.iloc[0]['Min']
+            next_c = next_data.iloc[0]['Close']
+            next_o = next_data.iloc[0]['Open']
             for j in range(0, 5):
                 cur_p *= (cur_data.iloc[j]['ChangeRatio'] + 1)
             cur_p = cur_p - 1
             if cur_p > low_limit and cur_p < high_limit:
-                filter_data.append(i)
+                if cur_c <= next_o <= 1.095 * cur_c and cur_c >= next_l:
+                    filter_data.append(i)
     # filter_data.sort(key=(lambda x: x[-1]))
     random.shuffle(filter_data)
     return filter_data[0:4]
@@ -181,18 +199,26 @@ def cal_nnn(data, date, tradingdate):
     # 提取最近3天数据
     today_indexes = tradingdate.index(date)
     cal_date = tradingdate[today_indexes - 2: today_indexes + 1]
-    data = data[data['TradingDate'] >= cal_date[0]]
-    data = data[data['TradingDate'] <= cal_date[2]]
+    today_data = data[data['TradingDate'] >= cal_date[0]]
+    today_data = today_data[today_data['TradingDate'] <= cal_date[2]]
+    tommorow_data = data[data['TradingDate'] == tradingdate[today_indexes + 1]]
     # 计算
     filter_data = list()
-    df_group = data.groupby(by="Symbol")
+    df_group = today_data.groupby(by="Symbol")
     stock_list = list(df_group.groups.keys())
     for i in stock_list:
-        cur_data = data[data['Symbol'] == i]
-        if cur_data.shape[0] == 3:
+        cur_data = today_data[today_data['Symbol'] == i]
+        next_data = tommorow_data[tommorow_data['Symbol'] == i]
+        if next_data.shape[0] != 0 and cur_data.shape[0] == 3:
+            cur_c = cur_data.iloc[0]['Close']
+            next_h = next_data.iloc[0]['Max']
+            next_l = next_data.iloc[0]['Min']
+            next_c = next_data.iloc[0]['Close']
+            next_o = next_data.iloc[0]['Open']
             cur_data.sort_values(by='TradingDate', ascending=True)
             if cur_data.iloc[0]['ChangeRatio'] > 0 and cur_data.iloc[1]['ChangeRatio'] > 0 and cur_data.iloc[2]['ChangeRatio'] > 0:
-                filter_data.append([cur_data.iloc[2]['Symbol'], cur_data.iloc[2]['TradingDate']])
+                if cur_c <= next_o <= 1.095 * cur_c and cur_c >= next_l:
+                    filter_data.append([cur_data.iloc[2]['Symbol'], cur_data.iloc[2]['TradingDate']])
 
     random.shuffle(filter_data)
     return filter_data
@@ -221,20 +247,35 @@ def cal_uuu(data, date, tradingdate):
 
 
 # 涨7策略
-def cal_7(data, date):
+def cal_7(data, date, next_date):
     # 获取对应日期数据
-    data = data[data['TradingDate'] == date]
+    tommorow_data = data[data['TradingDate'] == next_date]
+    today_data = data[data['TradingDate'] == date]
+    # # 统计包含0点的数量
+    amount = 0
+    contain_amount = 0
     # 算法计算得到的数据
     filter_data = list()
-    df_group = data.groupby(by="Symbol")
+    df_group = today_data.groupby(by="Symbol")
     stock_list = list(df_group.groups.keys())
     for i in stock_list:
-        cur_data = data[data['Symbol'] == i]
-        if cur_data.iloc[0]['ChangeRatio'] >= 0.07:
-            filter_data.append(cur_data.iloc[0]['Symbol'])
+        cur_data = today_data[today_data['Symbol'] == i]
+        next_data = tommorow_data[tommorow_data['Symbol'] == i]
+        if next_data.shape[0] != 0 and cur_data.shape[0] != 0:
+            cur_c = cur_data.iloc[0]['Close']
+            next_h = next_data.iloc[0]['Max']
+            next_l = next_data.iloc[0]['Min']
+            next_c = next_data.iloc[0]['Close']
+            next_o = next_data.iloc[0]['Open']
+            if cur_data.iloc[0]['ChangeRatio'] >= 0.07:
+                # amount += 1
+                if next_o <= 1.095 * cur_c:
+                    # next_l <= cur_c
+                    # contain_amount += 1
+                    filter_data.append(cur_data.iloc[0]['Symbol'])
 
     random.shuffle(filter_data)
-    return filter_data
+    return filter_data#, amount, contain_amount
 
 
 if __name__ == "__main__":
@@ -242,42 +283,53 @@ if __name__ == "__main__":
 
     data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
-    data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
-    
-    testYear = 4
+    # data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
+    # 配置参数
+    testYear = 1
     stockhold = 5
-    # 用于test nnn
-    # for i in range(0, testYear):
-    #     tradedata = data[data['TradingDate'] >= 10000*(2020-i) + 100]
-    #     tradedata = tradedata[tradedata['TradingDate'] <= 10000*(2020-i) + 315]
-    # 用于test7
-    # tradedata = data[data['TradingDate'] >= today - (testYear + 2) * 10000]
-    # tradedata = tradedata[tradedata['TradingDate'] <= today - testYear * 10000]
-    #
-    # 获取最近n年数据
-    tradedata = data[data['TradingDate'] >= today - testYear * 10000]
-    # 获取所有交易日
-    df_group = tradedata.groupby(by="TradingDate")
-    tradingdate = list(df_group.groups.keys())
-    # 回测
-    # 评估公式: score = all_add(x - 1.06) / np.var(x)
-    p, t = back_test(data, testYear, stockhold, tradingdate)
-    print("total:")
-    # print("5-10:" + str(t["5_10"]))
-    print("7:" + str(t["7"]))
-    # print("nnn:" + str(t["nnn"]))
+    test_batch = 5
+    # 汇总计算
+    aver = 0.0
+    score = 0.0
+    # 多次测试求平均
+    for i in range(0, test_batch):
+        # 用于test nnn
+        # for i in range(0, testYear):
+        #     tradedata = data[data['TradingDate'] >= 10000*(2020-i) + 115]
+        #     tradedata = tradedata[tradedata['TradingDate'] <= 10000*(2020-i) + 300]
+        # 用于test7
+        # tradedata = data[data['TradingDate'] >= today - (testYear + 2) * 10000]
+        # tradedata = tradedata[tradedata['TradingDate'] <= today - testYear * 10000]
+        #
+        # 获取最近n年数据
+        tradedata = data[data['TradingDate'] >= today - testYear * 10000]
+        # 获取所有交易日
+        df_group = tradedata.groupby(by="TradingDate")
+        tradingdate = list(df_group.groups.keys())
+        # 回测
+        # 评估公式: score = all_add(x - 1.06) / np.var(x)
+        p, t = back_test(data, testYear, stockhold, tradingdate)
+        print("total:")
+        # print("5-10:" + str(t["5_10"]))
+        print("7:" + str(t["7"]))
+        aver += t["7"]
+        # print("nnn:" + str(t["nnn"]))
 
-    # np5_10 = np.array(p["5_10"])
-    np7 = np.array(p["7"])
-    # npnnn = np.array(p["nnn"])
-    print("mean:")
-    # print(np.mean(np5_10))
-    print(np.mean(np7))
-    # print(np.mean(npnnn))
-    # score5_10 = np.mean(np5_10) / np.var(np5_10)
-    score7 = np.mean(np7) / np.var(np7)
-    # scorennn = np.mean(npnnn) / np.var(npnnn)
-    print("score:")
-    # print("5-10:" + str(score5_10))
-    print("7:" + str(score7))
-    # print("nnn:" + str(scorennn))
+        # np5_10 = np.array(p["5_10"])
+        np7 = np.array(p["7"])
+        # npnnn = np.array(p["nnn"])
+        print("mean:")
+        # print(np.mean(np5_10))
+        print(np.mean(np7))
+        # print(np.mean(npnnn))
+        # score5_10 = np.mean(np5_10) / np.var(np5_10)
+        score7 = np.mean(np7) / np.var(np7)
+        # scorennn = np.mean(npnnn) / np.var(npnnn)
+        print("score:")
+        # print("5-10:" + str(score5_10))
+        print("7:" + str(score7))
+        score += score7
+        # print("nnn:" + str(scorennn))
+
+    print("aver:" + str(aver / test_batch))
+    print("score:" + str(score / test_batch))
