@@ -21,8 +21,8 @@ class HoldStock():
     def cal_sell(self):
         hold_max_day = 5
         sell_max_profit = 1.15
-        sell_min_profit = 0.95
-        drop_limit = 0.02
+        sell_min_profit = 0.94
+        drop_limit = 0.03
         max_profit = 1.0
         if self.data.shape[0] >= hold_max_day + 1:
             for i in range(1, hold_max_day):
@@ -33,9 +33,15 @@ class HoldStock():
                 self.holdday += 1
                 # 满足条件提前终止循环,由于backtest逻辑，因此不需要处理当日卖出情况
                 if self.p > sell_max_profit:
+                    earn_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
+                        .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
+                    earn_logger.writelines('\n')
                     # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
                     break
                 if self.p < (max_profit - drop_limit if max_profit > 1 else sell_min_profit):
+                    loss_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
+                        .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
+                    loss_logger.writelines('\n')
                 # if self.p < sell_min_profit:
                     # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
                     break
@@ -156,7 +162,6 @@ def back_test(data, test_years, max_stockhold, tradingdate):
         #         del hold
 
     # print("contain rate:" + str(all_contain / all_count))
-
     return sell, total
 
 
@@ -280,6 +285,9 @@ def cal_7(data, date, next_date):
 
 if __name__ == "__main__":
     print("start...")
+    # 记录日志
+    earn_logger = open(r'C:\Users\wuziyang\Documents\PyWork\log\s7log_earn', 'w')
+    loss_logger = open(r'C:\Users\wuziyang\Documents\PyWork\log\s7log_loss', 'w')
 
     data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
@@ -333,3 +341,6 @@ if __name__ == "__main__":
 
     print("aver:" + str(aver / test_batch))
     print("score:" + str(score / test_batch))
+
+    earn_logger.close
+    loss_logger.close
