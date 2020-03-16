@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 import time
 import test_data_produce as ts
 import random
+import threading as td
 
 
 #TODO: nnn在年关附近测试
@@ -19,9 +20,9 @@ today = int(time.strftime("%Y%m%d", time.localtime()))
 class HoldStock():
     # 计算卖出日期与利率
     def cal_sell(self):
-        hold_max_day = 5
-        sell_max_profit = 1.15
-        sell_min_profit = 0.94
+        hold_max_day = 10
+        sell_max_profit = 1.18
+        sell_min_profit = 0.95
         drop_limit = 0.03
         max_profit = 1.0
         if self.data.shape[0] >= hold_max_day + 1:
@@ -38,11 +39,12 @@ class HoldStock():
                     earn_logger.writelines('\n')
                     # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
                     break
-                if self.p < (max_profit - drop_limit if max_profit > 1 else sell_min_profit):
+                # if self.p < sell_min_profit and self.holdday > 1:
+                if self.p < (max_profit - drop_limit if max_profit > 1 else sell_min_profit) or (self.holdday >= 3 and self.p <= 1.05):
+                    self.p *= data.iloc[i]['Close'] / data.iloc[i + 1]['Open']
                     loss_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
                         .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
                     loss_logger.writelines('\n')
-                # if self.p < sell_min_profit:
                     # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
                     break
 
@@ -87,7 +89,7 @@ def get_end_profit(data):
 # 需要一种方法衡量策略的风险
 def back_test(data, test_years, max_stockhold, tradingdate):
     # 计算日期
-    cal_date = tradingdate[4:-2]
+    cal_date = tradingdate[20:-2]
     # #
     # all_count = 0
     # all_contain = 0
@@ -115,7 +117,7 @@ def back_test(data, test_years, max_stockhold, tradingdate):
         #             stock_hold_5_10.append(HoldStock(sel_5_10[i], spend, stock_data))
         if len(stock_hold_7) < 5:
             # 获取筛选结果
-            sel_7 = cal_7(data, day, cal_date[cal_date.index(day) + 1])
+            sel_7 = cal_7(data, day, tradingdate)
             # all_count += temp_count
             # all_contain += temp_contain
             for i in range(0, min(len(sel_7), 5 - len(stock_hold_7))):
@@ -252,50 +254,60 @@ def cal_uuu(data, date, tradingdate):
 
 
 # 涨7策略
-def cal_7(data, date, next_date):
-    # 获取对应日期数据
-    tommorow_data = data[data['TradingDate'] == next_date]
-    today_data = data[data['TradingDate'] == date]
-    # # 统计包含0点的数量
-    amount = 0
-    contain_amount = 0
-    # 算法计算得到的数据
+def cal_7(data, date, tradate):
+    # 提取最近3天数据
+    today_indexes = tradate.index(date)
+    cal_date = tradate[today_indexes - 2: today_indexes + 1]
+    today_data = data[data['TradingDate'] >= cal_date[0]]
+    today_data = today_data[today_data['TradingDate'] <= cal_date[2]]
+    tommorow_data = data[data['TradingDate'] == tradate[today_indexes + 1]]
+    # 计算
     filter_data = list()
     df_group = today_data.groupby(by="Symbol")
     stock_list = list(df_group.groups.keys())
     for i in stock_list:
         cur_data = today_data[today_data['Symbol'] == i]
         next_data = tommorow_data[tommorow_data['Symbol'] == i]
-        if next_data.shape[0] != 0 and cur_data.shape[0] != 0:
-            cur_c = cur_data.iloc[0]['Close']
+        if next_data.shape[0] != 0 and cur_data.shape[0] == 3:
+            cur_c = cur_data.iloc[2]['Close']
             next_h = next_data.iloc[0]['Max']
             next_l = next_data.iloc[0]['Min']
             next_c = next_data.iloc[0]['Close']
             next_o = next_data.iloc[0]['Open']
-            if cur_data.iloc[0]['ChangeRatio'] >= 0.07:
-                # amount += 1
-                if next_o <= 1.095 * cur_c:
-                    # next_l <= cur_c
-                    # contain_amount += 1
-                    filter_data.append(cur_data.iloc[0]['Symbol'])
+            cur_data.sort_values(by='TradingDate', ascending=True)
+            if cur_data.iloc[0]['ChangeRatio'] > 0 and cur_data.iloc[1]['ChangeRatio'] > 0 and cur_data.iloc[2]['ChangeRatio'] >= 0.07:
+                if next_o <= 1.095 * cur_c and over_aver(data, today_indexes, cur_data.iloc[2]['Close']):
+                    filter_data.append(cur_data.iloc[2]['Symbol'])
 
     random.shuffle(filter_data)
     return filter_data#, amount, contain_amount
 
 
+# 是否超越均线+方差
+def over_aver(data, index, cur_price):
+    cal_data = data[index - 20: index + 1]['Close'].values
+    if np.mean(cal_data) + 3 * np.var(cal_data) <= cur_price:
+        return True
+    else:
+        return False
+
 if __name__ == "__main__":
     print("start...")
     # 记录日志
-    earn_logger = open(r'C:\Users\wuziyang\Documents\PyWork\log\s7log_earn', 'w')
-    loss_logger = open(r'C:\Users\wuziyang\Documents\PyWork\log\s7log_loss', 'w')
+    earn_logger = open(r'D:\wuziyang\s7log_earn', 'a+')
+    loss_logger = open(r'D:\wuziyang\s7log_loss', 'a+')
+    earn_logger.writelines('\n')
+    loss_logger.writelines('\n')
 
-    data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
+    data_path = r'D:\wuziyang\workfile\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
+    # 去除科创板和沪B
+    data = data[data['Symbol'] < 680000]
     # data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
     # 配置参数
     testYear = 1
     stockhold = 5
-    test_batch = 5
+    test_batch = 1
     # 汇总计算
     aver = 0.0
     score = 0.0
