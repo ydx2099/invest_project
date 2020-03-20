@@ -586,6 +586,34 @@ def test_func(data):
     # print("score:" + str(score / test_batch))
 
 
+def temp_use():
+        plt.rcParams['font.sans-serif']=['SimHei']
+    plt.rcParams['axes.unicode_minus'] = False
+    myfont=matplotlib.font_manager.FontProperties(fname='C:/Windows/Fonts/STXINWEI.TTF')
+
+    pos = pd.read_csv(r'D:\wuziyang\workfile\pos.csv')
+    neg = pd.read_csv(r'D:\wuziyang\workfile\neg.csv')
+    pos_lis = pos[['P5', 'P10', 'P20', 'OverTimes']].values
+    neg_lis = neg[['P5', 'P10', 'P20', 'OverTimes']].values
+
+    p5 = pos_lis[:, 0]
+    p5 = np.append(p5, neg_lis[:, 0])
+    std5 = np.std(p5)
+    p10 = pos_lis[:, 1]
+    p10 = np.append(p10, neg_lis[:, 1])
+    std10 = np.std(p10)
+    p20 = pos_lis[:, 2]
+    p20 = np.append(p20, neg_lis[:, 2])
+    std20 = np.std(p20)
+    ot = pos_lis[:, 3]
+    ot = np.append(ot, neg_lis[:, 3])
+    stdot = np.std(ot)
+    print(std5 / np.mean(p5))
+    print(std10 / np.mean(p10))
+    print(std20 / np.mean(p20))
+    print(stdot / np.mean(ot))
+
+
 if __name__ == "__main__":
     print("start...")
     startt = time.time()
