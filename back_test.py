@@ -8,6 +8,8 @@ import test_data_produce as ts
 import random
 import threading as td
 import lightgbm as lgb
+from matplotlib import pyplot as plt
+import matplotlib
 
 
 #TODO: 统计last跌next高开的比例
@@ -382,8 +384,8 @@ class extract_feature():
             neg_res += neg_tmp
 
         # 写出
-        pd.DataFrame(pos_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'D:\wuziyang\workfile\pos.csv', index=False)
-        pd.DataFrame(neg_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'D:\wuziyang\workfile\neg.csv', index=False)
+        pd.DataFrame(pos_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'C:\Users\wuziyang\Documents\PyWork\feature\pos.csv', index=False)
+        pd.DataFrame(neg_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'C:\Users\wuziyang\Documents\PyWork\feature\neg.csv', index=False)
         return
 
     def filter_func(self, dates:np.array):
@@ -494,14 +496,17 @@ class drop_rate_test():
     def __init__(self, data):
         self.data = data
         self.thread_num = 16
+        # 股票下跌卖出最高比例
         self.drop_rate = 0.03
 
 
     def test_drop_rate(self):
         df_group = data.groupby(by="Symbol")
+        # 按线程分割原股票，进行多线程处理
         sts = np.array_split(list(df_group.groups.keys()), self.thread_num)
         tds = []
         res = list()
+        # 建立多线程并执行
         for i in range(0, self.thread_num):
             t = myThread(self.filter_func, args=(sts[i],))
             tds.append(t)
@@ -509,27 +514,35 @@ class drop_rate_test():
             tds[i].start()
         for i in range(0, self.thread_num):
             tds[i].join()
-
+        # 获取执行结果
         for i in range(0, self.thread_num):
             res += tds[i].getRes()
 
         return
 
-    def filter_func(self, sts):
+    def filter_func(self, stocks):
+        # 存储结果
         res = list()
-        for s in sts:
-            c_d = self.data[self.data['Symbol'] == s]
+        # 处理所有股票
+        for stock in stocks:
+            cur_stock_data = self.data[self.data['Symbol'] == stock]
             # 获取所有交易日
-            df_group = c_d.groupby(by="TradingDate")
-            t_date = list(df_group.groups.keys())
-            for d in t_date[5:]:
-                d_x = t_date.index(d)
-                ear_d = c_d[c_d['TradingDate'] == t_date[d_x - 5]]
-                t_d = c_d[c_d['TradingDate'] == d]
-                m_p = c_p = t_d['Close'] / ear_d['Open']
-                if c_p > 1.12:
-                    for a in t_date[d_x:]:
-                        if 
+            df_group = cur_stock_data.groupby(by="TradingDate")
+            total_date = list(df_group.groups.keys())
+            # 对一支股票，计算所有交易日期符合条件数据，统计结果
+            for day in total_date[5:]:
+                # 获取某天在所有日期中的位置
+                day_index = total_date.index(day)
+                early_data = cur_stock_data[cur_stock_data['TradingDate'] == total_date[day_index - 5]]
+                today_data = cur_stock_data[cur_stock_data['TradingDate'] == day]
+                max_p = cur_p = today_data['Close'] / early_data['Open']
+                # 只处理过去五天盈利过12的
+                if cur_p > 1.12:
+                    # 计算接下来的交易日，按drop rate最终能够获得的盈利
+                    for after_day in total_date[day_index:]:
+                        cur_p *= cur_stock_data[cur_stock_data['TradingDate'] == after_day]
+                        if cur_p >= max_p:
+                            max_p = cur_p
 
         return res
 
@@ -587,12 +600,12 @@ def test_func(data):
 
 
 def temp_use():
-        plt.rcParams['font.sans-serif']=['SimHei']
+    plt.rcParams['font.sans-serif']=['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
     myfont=matplotlib.font_manager.FontProperties(fname='C:/Windows/Fonts/STXINWEI.TTF')
 
-    pos = pd.read_csv(r'D:\wuziyang\workfile\pos.csv')
-    neg = pd.read_csv(r'D:\wuziyang\workfile\neg.csv')
+    pos = pd.read_csv(r'C:\Users\wuziyang\Documents\PyWork\feature\pos.csv')
+    neg = pd.read_csv(r'C:\Users\wuziyang\Documents\PyWork\feature\neg.csv')
     pos_lis = pos[['P5', 'P10', 'P20', 'OverTimes']].values
     neg_lis = neg[['P5', 'P10', 'P20', 'OverTimes']].values
 
@@ -618,12 +631,12 @@ if __name__ == "__main__":
     print("start...")
     startt = time.time()
     # 记录日志
-    earn_logger = open(r'D:\wuziyang\s7log_earn', 'a+')
-    loss_logger = open(r'D:\wuziyang\s7log_loss', 'a+')
+    earn_logger = open(r'C:\Users\wuziyang\Documents\PyWork\log\s7log_earn', 'a+')
+    loss_logger = open(r'C:\Users\wuziyang\Documents\PyWork\log\s7log_loss', 'a+')
     earn_logger.writelines('\n')
     loss_logger.writelines('\n')
 
-    data_path = r'D:\wuziyang\workfile\stock_latest.csv'
+    data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
     # 去除科创板和沪B
     data = data[data['Symbol'] < 680000]
