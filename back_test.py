@@ -36,7 +36,7 @@ class myThread(td.Thread):
 class HoldStock():
     # 计算卖出日期与利率
     def cal_sell(self):
-        hold_max_day = 30
+        hold_max_day = 90
         sell_max_profit = 1.12
         sell_min_profit = 0.99
         drop_limit = 0.03
@@ -58,13 +58,17 @@ class HoldStock():
                     # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
                     # break
                 # if self.p < sell_min_profit and self.holdday > 1:
-                if self.p < sell_min_profit or (self.holdday >= 3 and self.p <= 1.06):
-                    self.p *= data.iloc[i]['Close'] / data.iloc[i + 1]['Open']
-                    loss_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
-                        .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
-                    loss_logger.writelines('\n')
-                    # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
-                    break
+                # if self.p < sell_min_profit or (self.holdday >= 3 and self.p <= 1.06):
+                #     self.p *= data.iloc[i]['Close'] / data.iloc[i + 1]['Open']
+                #     loss_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
+                #         .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
+                #     loss_logger.writelines('\n')
+                #     # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
+                #     break
+            earn_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
+                .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
+            earn_logger.writelines('\n')
+
 
 
     def __init__(self, symbol:str, amount:float, data):
@@ -125,7 +129,7 @@ def back_test(data, test_years, max_stockhold, tradingdate):
         # 持股不满时才需要计算
         if len(stock_hold_5_10) < max_stockhold:
             # 获取筛选结果
-            sel_5_10 = cal_5_10(data, day, tradingdate, 0.3, 0.14)
+            sel_5_10 = cal_5_10(data, day, tradingdate, -0.08, -0.12)
             for i in range(0, 5 - len(stock_hold_5_10)):
                 if len(sel_5_10) > i:
                     stock_data = data[data['Symbol'] == sel_5_10[i][0]]
@@ -231,6 +235,7 @@ def func_5_10(stock_list, today_data, today_indexes, tommorow_data, high_limit, 
             cur_p = cur_p - 1
             if low_limit < cur_p < high_limit and final_p >= 0.07:
                 flag, over_rate = over_aver(data, today_indexes, cur_data.iloc[5]['Close'])
+                print(over_rate)
                 if next_p <= 1.095 * cur_c and flag:
                     filter_data.append([i, over_rate])
 
@@ -367,6 +372,7 @@ class extract_feature():
         dates = np.array_split(self.date[20:], self.thread_num)
         pos_res = list()
         neg_res = list()
+        mid_res = list()
         tds = []
         for i in range(0, self.thread_num):
             t = myThread(self.filter_func, args=(dates[i],))
@@ -379,13 +385,18 @@ class extract_feature():
         for i in range(0, self.thread_num):
             pos_tmp = list()
             neg_tmp = list()
-            pos_tmp, neg_tmp = tds[i].getRes()
+            mid_tmp = list()
+            pos_tmp, mid_tmp, neg_tmp = tds[i].getRes()
             pos_res += pos_tmp
             neg_res += neg_tmp
+            mid_res += mid_tmp
 
         # 写出
-        pd.DataFrame(pos_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'C:\Users\wuziyang\Documents\PyWork\feature\pos.csv', index=False)
-        pd.DataFrame(neg_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'C:\Users\wuziyang\Documents\PyWork\feature\neg.csv', index=False)
+        pd.DataFrame(pos_res, columns=['Id', 'Date', 'P5', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\pos.csv', index=False)
+        pd.DataFrame(neg_res, columns=['Id', 'Date', 'P5', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\neg.csv', index=False)
+        pd.DataFrame(mid_res, columns=['Id', 'Date', 'P5', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\mid.csv', index=False)
+        # pd.DataFrame(pos_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'D:\wuziyang\workfile\\pos.csv', index=False)
+        # pd.DataFrame(neg_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'D:\wuziyang\workfile\\neg.csv', index=False)
         return
 
     def filter_func(self, dates:np.array):
@@ -393,6 +404,7 @@ class extract_feature():
             # 收集结果
             pos_res = list()
             neg_res = list()
+            mid_res = list()
             # 获取对应日期数据
             today_indexes = self.date.index(date)
             cal_date = self.date[today_indexes - 20: today_indexes + 5]
@@ -408,38 +420,32 @@ class extract_feature():
                     if buy_p <= 1.095:
                         # 预测的p
                         cur_p = cur_data.iloc[-1]['Close'] / cur_data.iloc[-5]['Open']
+                        old_data = cur_data[:20]
+                        old_data = old_data['Close'].values
+                        av = np.mean(old_data)
+                        std = np.std(old_data)
+                        # # 20天的p
+                        # p20 = cur_data.iloc[-6]['Close'] / cur_data.iloc[0]['Close']
+                        # # 10天的p
+                        # p10 = cur_data.iloc[-6]['Close'] / cur_data.iloc[10]['Close']
+                        # 5天的p
+                        p5 = cur_data.iloc[-6]['Close'] / cur_data.iloc[15]['Close']
+                        # 超越均值的标准差倍数
+                        over_times = (cur_data.iloc[-6]['Close'] - av) / std
+                        # std比av
+                        std_rate = std / av
                         if cur_p >= 1.12:
-                            old_data = cur_data[:20]
-                            old_data = old_data['Close'].values
-                            av = np.mean(old_data)
-                            std = np.std(old_data)
-                            # 20天的p
-                            p20 = cur_data.iloc[-6]['Close'] / cur_data.iloc[0]['Close']
-                            # 10天的p
-                            p10 = cur_data.iloc[-6]['Close'] / cur_data.iloc[10]['Close']
-                            # 5天的p
-                            p5 = cur_data.iloc[-6]['Close'] / cur_data.iloc[15]['Close']
-                            # 超越均值的标准差倍数
-                            over_times = (cur_data.iloc[-6]['Close'] - av) / std
                             # 记录
-                            pos_res.append([i, date, p5, p10, p20, over_times])
+                            # pos_res.append([i, date, p5, p10, p20, over_times])
+                            pos_res.append([i, date, p5, over_times, std_rate])
+                        if 1.12 > cur_p > 1:
+                            mid_res.append([i, date, p5, over_times, std_rate])
                         if cur_p <= 1:
-                            old_data = cur_data[:20]
-                            old_data = old_data['Close'].values
-                            av = np.mean(old_data)
-                            std = np.std(old_data)
-                            # 20天的p
-                            p20 = cur_data.iloc[-6]['Close'] / cur_data.iloc[0]['Close']
-                            # 10天的p
-                            p10 = cur_data.iloc[-6]['Close'] / cur_data.iloc[10]['Close']
-                            # 5天的p
-                            p5 = cur_data.iloc[-6]['Close'] / cur_data.iloc[15]['Close']
-                            # 超越均值的标准差倍数
-                            over_times = (cur_data.iloc[-6]['Close'] - av) / std
                             # 记录
-                            neg_res.append([i, date, p5, p10, p20, over_times])
+                            # neg_res.append([i, date, p5, p10, p20, over_times])
+                            neg_res.append([i, date, p5, over_times, std_rate])
 
-        return pos_res, neg_res
+        return pos_res, mid_res, neg_res
 
 # # lgbm with kfold
 # # 将数据根据不同策略进行分类，收益符合预期的为大于1的类别，失败例分为类别0
@@ -497,7 +503,7 @@ class drop_rate_test():
         self.data = data
         self.thread_num = 16
         # 股票下跌卖出最高比例
-        self.drop_rate = 0.03
+        self.drop_rate = 0.02
 
 
     def test_drop_rate(self):
@@ -518,7 +524,7 @@ class drop_rate_test():
         for i in range(0, self.thread_num):
             res += tds[i].getRes()
 
-        return
+        return res
 
     def filter_func(self, stocks):
         # 存储结果
@@ -535,14 +541,19 @@ class drop_rate_test():
                 day_index = total_date.index(day)
                 early_data = cur_stock_data[cur_stock_data['TradingDate'] == total_date[day_index - 5]]
                 today_data = cur_stock_data[cur_stock_data['TradingDate'] == day]
-                max_p = cur_p = today_data['Close'] / early_data['Open']
-                # 只处理过去五天盈利过12的
-                if cur_p > 1.12:
-                    # 计算接下来的交易日，按drop rate最终能够获得的盈利
-                    for after_day in total_date[day_index:]:
-                        cur_p *= cur_stock_data[cur_stock_data['TradingDate'] == after_day]
-                        if cur_p >= max_p:
-                            max_p = cur_p
+                if today_data.shape[0] == 1 and early_data.shape[0] == 1:
+                    cur_p = today_data.iloc[0]['Close'] / early_data.iloc[0]['Open']
+                    max_p = cur_p
+                    # 只处理过去五天盈利过12的
+                    if cur_p > 1.12:
+                        # 计算接下来的交易日，按drop rate最终能够获得的盈利
+                        for after_day in total_date[day_index:]:
+                            cur_p *= 1 + cur_stock_data[cur_stock_data['TradingDate'] == after_day].iloc[0]['ChangeRatio']
+                            if cur_p >= max_p:
+                                max_p = cur_p
+                            if max_p - self.drop_rate >= cur_p:
+                                res.append(cur_p)
+                                break
 
         return res
 
@@ -604,46 +615,69 @@ def temp_use():
     plt.rcParams['axes.unicode_minus'] = False
     myfont=matplotlib.font_manager.FontProperties(fname='C:/Windows/Fonts/STXINWEI.TTF')
 
-    pos = pd.read_csv(r'C:\Users\wuziyang\Documents\PyWork\feature\pos.csv')
-    neg = pd.read_csv(r'C:\Users\wuziyang\Documents\PyWork\feature\neg.csv')
-    pos_lis = pos[['P5', 'P10', 'P20', 'OverTimes']].values
-    neg_lis = neg[['P5', 'P10', 'P20', 'OverTimes']].values
+    pos = pd.read_csv(r'D:\wuziyang\pos.csv')
+    neg = pd.read_csv(r'D:\wuziyang\neg.csv')
+    pos_lis = pos[['OverTimes', 'Std']].values
+    neg_lis = neg[['OverTimes', 'Std']].values
 
-    p5 = pos_lis[:, 0]
-    p5 = np.append(p5, neg_lis[:, 0])
-    std5 = np.std(p5)
-    p10 = pos_lis[:, 1]
-    p10 = np.append(p10, neg_lis[:, 1])
-    std10 = np.std(p10)
-    p20 = pos_lis[:, 2]
-    p20 = np.append(p20, neg_lis[:, 2])
-    std20 = np.std(p20)
-    ot = pos_lis[:, 3]
-    ot = np.append(ot, neg_lis[:, 3])
-    stdot = np.std(ot)
-    print(std5 / np.mean(p5))
-    print(std10 / np.mean(p10))
-    print(std20 / np.mean(p20))
-    print(stdot / np.mean(ot))
+    # p5 = pos_lis[:, 0]
+    # p5 = np.append(p5, neg_lis[:, 0])
+    # std5 = np.std(p5)
+    # p10 = pos_lis[:, 1]
+    # p10 = np.append(p10, neg_lis[:, 1])
+    # std10 = np.std(p10)
+    # p20 = pos_lis[:, 2]
+    # p20 = np.append(p20, neg_lis[:, 2])
+    # std20 = np.std(p20)
+    # ot = pos_lis[:, 3]
+    # ot = np.append(ot, neg_lis[:, 3])
+    # stdot = np.std(ot)
+    # print(std5 / np.mean(p5))
+    # print(std10 / np.mean(p10))
+    # print(std20 / np.mean(p20))
+    # print(stdot / np.mean(ot))
+
+
+    # avx1 = np.mean(pos_lis[:, 0])
+    # avy1 = np.mean(pos_lis[:, 1])
+    # avx2 = np.mean(neg_lis[:, 0])
+    # avy2 = np.mean(neg_lis[:, 1])
+    # x1 = pos_lis[:, 0] / avx1
+    # y1 = pos_lis[:, 1] / avy1
+    # x2 = neg_lis[:, 0] / avx2
+    # y2 = neg_lis[:, 1] / avy2
+    # plt.scatter(x1, y1, label=u"Hive写入平均耗时", marker='o', alpha=1, s=32, c='', edgecolors='r')
+    # plt.scatter(x2, y2, label=u"Hive写入平均耗时", marker='*', alpha=1, s=32, c='', edgecolors='b')
+
+    plt.show()
 
 
 if __name__ == "__main__":
     print("start...")
     startt = time.time()
     # 记录日志
-    earn_logger = open(r'C:\Users\wuziyang\Documents\PyWork\log\s7log_earn', 'a+')
-    loss_logger = open(r'C:\Users\wuziyang\Documents\PyWork\log\s7log_loss', 'a+')
+    earn_logger = open(r'D:\wuziyang\workfile\s7log_earn', 'a+')
+    loss_logger = open(r'D:\wuziyang\workfile\s7log_loss', 'a+')
     earn_logger.writelines('\n')
     loss_logger.writelines('\n')
 
-    data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
+    data_path = r'D:\wuziyang\workfile\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
     # 去除科创板和沪B
     data = data[data['Symbol'] < 680000]
     # data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
     data = data[data['TradingDate'] >= 20180000]
-    e = extract_feature(data)
-    e.cal_sample()
+    # e = extract_feature(data)
+    # e.cal_sample()
+
+    # temp_use()
+
+    test_func(data)
+
+    # f = drop_rate_test(data)
+    # d = f.test_drop_rate()
+    # print(np.mean(np.array(d)))
+    # print(np.std(np.array(d)))
     
     earn_logger.close
     loss_logger.close
