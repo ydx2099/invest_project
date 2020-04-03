@@ -10,6 +10,7 @@ import threading as td
 import lightgbm as lgb
 from matplotlib import pyplot as plt
 import matplotlib
+from sklearn.model_selection import train_test_split,GridSearchCV,StratifiedKFold
 
 
 #TODO: 统计last跌next高开的比例
@@ -22,10 +23,12 @@ today = int(time.strftime("%Y%m%d", time.localtime()))
 # 线程类
 class myThread(td.Thread):
     def __init__(self, func, args, name=''):
-        td.Thread.__init__(self)
+        super(myThread, self).__init__()
         self.name = name
         self.func = func
         self.args = args
+        
+    def run(self):
         self.result = self.func(*self.args)
 
     def getRes(self):
@@ -36,9 +39,9 @@ class myThread(td.Thread):
 class HoldStock():
     # 计算卖出日期与利率
     def cal_sell(self):
-        hold_max_day = 90
-        sell_max_profit = 1.12
-        sell_min_profit = 0.99
+        hold_max_day = 5
+        sell_max_profit = 1.15
+        sell_min_profit = 0.94
         drop_limit = 0.03
         max_profit = 1.0
         if self.data.shape[0] >= hold_max_day + 1:
@@ -58,16 +61,16 @@ class HoldStock():
                     # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
                     # break
                 # if self.p < sell_min_profit and self.holdday > 1:
-                # if self.p < sell_min_profit or (self.holdday >= 3 and self.p <= 1.06):
-                #     self.p *= data.iloc[i]['Close'] / data.iloc[i + 1]['Open']
-                #     loss_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
-                #         .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
-                #     loss_logger.writelines('\n')
-                #     # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
-                #     break
-            earn_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
-                .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
-            earn_logger.writelines('\n')
+                if self.p < sell_min_profit or (self.holdday >= 3 and self.p <= 1.06):
+                    self.p *= data.iloc[i]['Close'] / data.iloc[i + 1]['Open']
+                    loss_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
+                        .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
+                    loss_logger.writelines('\n')
+                    # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
+                    break
+            # earn_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
+            #     .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
+            # earn_logger.writelines('\n')
 
 
 
@@ -127,47 +130,47 @@ def back_test(data, test_years, max_stockhold, tradingdate):
     # 回测开始
     for day in cal_date[:-2]:
         # 持股不满时才需要计算
-        if len(stock_hold_5_10) < max_stockhold:
-            # 获取筛选结果
-            sel_5_10 = cal_5_10(data, day, tradingdate, -0.08, -0.12)
-            for i in range(0, 5 - len(stock_hold_5_10)):
-                if len(sel_5_10) > i:
-                    stock_data = data[data['Symbol'] == sel_5_10[i][0]]
-                    stock_data = stock_data[stock_data['TradingDate'] > day]
-                    spend = min(balance["5_10"], total["5_10"] / 5)
-                    balance["5_10"] -= spend
-                    stock_hold_5_10.append(HoldStock(sel_5_10[i][0], spend, stock_data))
+        # if len(stock_hold_5_10) < max_stockhold:
+        #     # 获取筛选结果
+        #     sel_5_10 = cal_5_10(data, day, tradingdate, -0.08, -0.12)
+        #     for i in range(0, 5 - len(stock_hold_5_10)):
+        #         if len(sel_5_10) > i:
+        #             stock_data = data[data['Symbol'] == sel_5_10[i][0]]
+        #             stock_data = stock_data[stock_data['TradingDate'] > day]
+        #             spend = min(balance["5_10"], total["5_10"] / 5)
+        #             balance["5_10"] -= spend
+        #             stock_hold_5_10.append(HoldStock(sel_5_10[i][0], spend, stock_data))
         # if len(stock_hold_7) < max_stockhold:
         #     # 获取筛选结果
         #     sel_7 = cal_7(data, day, tradingdate)
         #     # all_count += temp_count
         #     # all_contain += temp_contain
         #     for i in range(0, min(len(sel_7), 5 - len(stock_hold_7))):
-        #         stock_data = data[data['Symbol'] == sel_7[i][0]]
+        #         stock_data = data[data['Symbol'] == sel_7[-i][0]]
         #         stock_data = stock_data[stock_data['TradingDate'] >= day]
         #         spend = min(balance["7"], total["7"] / 5)
         #         balance["7"] -= spend
-        #         stock_hold_7.append(HoldStock(sel_7[i][0], spend, stock_data))
-        # if len(stock_hold_nnn) < max_stockhold:
-        #     # 获取筛选结果
-        #     sel_nnn = cal_uuu(data, day, tradingdate)
-        #     # sel_nnn = cal_uuu(data, day, tradingdate)
-        #     for i in range(0, 5 - len(stock_hold_nnn)):
-        #         if len(sel_nnn) > i:
-        #             stock_data = data[data['Symbol'] == sel_nnn[i][0]]
-        #             stock_data = stock_data[stock_data['TradingDate'] > day]
-        #             spend = min(balance["nnn"], total["nnn"] / 5)
-        #             balance["nnn"] -= spend
-        #             stock_hold_nnn.append(HoldStock(sel_nnn[i], spend, stock_data))
+        #         stock_hold_7.append(HoldStock(sel_7[-i][0], spend, stock_data))
+        if len(stock_hold_nnn) < max_stockhold:
+            # 获取筛选结果
+            sel_nnn = cal_nnn(data, day, tradingdate)
+            # sel_nnn = cal_uuu(data, day, tradingdate)
+            for i in range(0, 5 - len(stock_hold_nnn)):
+                if len(sel_nnn) > i:
+                    stock_data = data[data['Symbol'] == sel_nnn[i]]
+                    stock_data = stock_data[stock_data['TradingDate'] > day]
+                    spend = min(balance["nnn"], total["nnn"] / 5)
+                    balance["nnn"] -= spend
+                    stock_hold_nnn.append(HoldStock(sel_nnn[i], spend, stock_data))
             
-        # 计算卖出
-        for hold in stock_hold_5_10:
-            if int(day) == int(hold.enddate):
-                total["5_10"] += hold.amount * (hold.p - 1)
-                balance["5_10"] += hold.amount * hold.p
-                sell["5_10"].append(hold.p)
-                stock_hold_5_10.remove(hold)
-                del hold
+        # # 计算卖出
+        # for hold in stock_hold_5_10:
+        #     if int(day) == int(hold.enddate):
+        #         total["5_10"] += hold.amount * (hold.p - 1)
+        #         balance["5_10"] += hold.amount * hold.p
+        #         sell["5_10"].append(hold.p)
+        #         stock_hold_5_10.remove(hold)
+        #         del hold
 
         # for hold in stock_hold_7:
         #     if int(day) == int(hold.enddate):
@@ -177,13 +180,13 @@ def back_test(data, test_years, max_stockhold, tradingdate):
         #         stock_hold_7.remove(hold)
         #         del hold
 
-        # for hold in stock_hold_nnn:
-        #     if int(day) == int(hold.enddate):
-        #         total["nnn"] += hold.amount * (hold.p - 1)
-        #         balance["nnn"] += hold.amount * hold.p
-        #         sell["nnn"].append(hold.p)
-        #         stock_hold_nnn.remove(hold)
-        #         del hold
+        for hold in stock_hold_nnn:
+            if int(day) == int(hold.enddate):
+                total["nnn"] += hold.amount * (hold.p - 1)
+                balance["nnn"] += hold.amount * hold.p
+                sell["nnn"].append(hold.p)
+                stock_hold_nnn.remove(hold)
+                del hold
 
     # print("contain rate:" + str(all_contain / all_count))
     return sell, total
@@ -206,12 +209,9 @@ def cal_5_10(data, date, tradingdate, high_limit, low_limit):
     for i in range(0, thread_num):
         t = myThread(func_5_10, (st_lists[i], today_data, today_indexes, tommorow_data, high_limit, low_limit, data))
         tds.append(t)
-    for i in range(0, thread_num):
         tds[i].start()
     for i in range(0, thread_num):
         tds[i].join()
-
-    for i in range(0, thread_num):
         res_list += tds[i].getRes()
 
     res_list.sort(key=(lambda x: x[-1]))
@@ -264,9 +264,10 @@ def cal_nnn(data, date, tradingdate):
             next_c = next_data.iloc[0]['Close']
             next_o = next_data.iloc[0]['Open']
             cur_data.sort_values(by='TradingDate', ascending=True)
-            if cur_data.iloc[0]['ChangeRatio'] > 0 and cur_data.iloc[1]['ChangeRatio'] > 0 and cur_data.iloc[2]['ChangeRatio'] > 0:
-                if cur_c <= next_o <= 1.095 * cur_c and cur_c >= next_l:
-                    filter_data.append([cur_data.iloc[2]['Symbol'], cur_data.iloc[2]['TradingDate']])
+            if (1 + cur_data.iloc[0]['ChangeRatio']) * (1 + cur_data.iloc[1]['ChangeRatio']) * (1 + cur_data.iloc[2]['ChangeRatio']) >= 1.2:
+            # if cur_data.iloc[0]['ChangeRatio'] > 0 and cur_data.iloc[1]['ChangeRatio'] > 0 and cur_data.iloc[2]['ChangeRatio'] > 0:
+                if cur_c <= next_o <= 1.095 * cur_c:
+                    filter_data.append(cur_data.iloc[2]['Symbol'])
 
     random.shuffle(filter_data)
     return filter_data
@@ -312,16 +313,13 @@ def cal_7(data, date, tradate):
     for i in range(0, thread_num):
         t = myThread(func7, (st_lists[i], today_indexes, today_data, tommorow_data, data))
         tds.append(t)
-    for i in range(0, thread_num):
         tds[i].start()
     for i in range(0, thread_num):
         tds[i].join()
-
-    for i in range(0, thread_num):
         res_list += tds[i].getRes()
 
     res_list = sorted(res_list, key=lambda x: x[-1])
-    # random.shuffle(res_list)
+    random.shuffle(res_list)
     return res_list#, amount, contain_amount
 
 def func7(stock_list, today_indexes, today_data, tommorow_data, data):
@@ -329,16 +327,17 @@ def func7(stock_list, today_indexes, today_data, tommorow_data, data):
     for i in stock_list:
         cur_data = today_data[today_data['Symbol'] == i]
         next_data = tommorow_data[tommorow_data['Symbol'] == i]
-        if next_data.shape[0] != 0 and cur_data.shape[0] == 3:
-            cur_c = cur_data.iloc[2]['Close']
-            next_o = next_data.iloc[0]['Open']
+        if next_data.shape[0] != 0 and cur_data.shape[0] != 0:
+            # cur_c = cur_data.iloc[0]['Close']
+            # next_o = next_data.iloc[0]['Open']
             cur_data.sort_values(by='TradingDate', ascending=True)
             # if cur_data.iloc[0]['ChangeRatio'] > 0 and cur_data.iloc[1]['ChangeRatio'] > 0 and cur_data.iloc[2]['ChangeRatio'] >= 0.07:
-            if cur_data.iloc[2]['ChangeRatio'] >= 0.095:
-                flag, over_rate = over_aver(data, today_indexes, cur_data.iloc[2]['Close'])
+            if 0.07 <= cur_data.iloc[0]['ChangeRatio'] <= 0.095:
+                flag, over_rate = over_aver(data, today_indexes, cur_data.iloc[0]['Close'])
                 # if next_o <= 1.03 * cur_c and flag:
-                if cur_c * 0.97 <= next_o <= cur_c * 1.03 and flag:
-                    filter_data.append([cur_data.iloc[2]['Symbol'], over_rate])
+                # if cur_c * 0.97 <= next_o <= cur_c * 1.03 and flag:
+                if flag:
+                    filter_data.append([cur_data.iloc[0]['Symbol'], over_rate])
 
     return filter_data
 
@@ -377,12 +376,9 @@ class extract_feature():
         for i in range(0, self.thread_num):
             t = myThread(self.filter_func, args=(dates[i],))
             tds.append(t)
-        for i in range(0, self.thread_num):
             tds[i].start()
         for i in range(0, self.thread_num):
             tds[i].join()
-
-        for i in range(0, self.thread_num):
             pos_tmp = list()
             neg_tmp = list()
             mid_tmp = list()
@@ -447,54 +443,56 @@ class extract_feature():
 
         return pos_res, mid_res, neg_res
 
-# # lgbm with kfold
-# # 将数据根据不同策略进行分类，收益符合预期的为大于1的类别，失败例分为类别0
-# # 使用lgbm框架训练，对后续数据进行预测
-# # TODO：跟踪预测数据的结果，判断是否正确，重新加权训练
-# def lgbmKfold(datas, labels, classes, testData=None, testLabel=None):
-#     if testData == None and testLabel == None:
-#         X_train,X_test,y_train,y_test=train_test_split(datas, labels, test_size=0.3, random_state=2020)
-#     else:
-#         X_train = datas
-#         X_test = labels
-#         y_train = testData
-#         y_test = testLabel
-#     params={
-#         'boosting_type': 'gbdt',  
-#         'learning_rate':0.1,
-#         'lambda_l1':0.1,
-#         'lambda_l2':0.2,
-#         'max_depth':4,
-#         'objective':'multiclass',
-#         'num_class':classes,
-#     }
-#     # k折交叉验证
-#     folds_num = 5
-#     skf = StratifiedKFold(n_splits=folds_num, random_state=2020, shuffle=True)
-#     test_pred_prob = np.zeros((X_test.shape[0], classes))
-#     for _, (trn_idx, val_idx) in enumerate(skf.split(X_train, y_train)):
-#         train_data = lgb.Dataset(X_train[trn_idx], label=y_train[trn_idx])
-#         validation_data = lgb.Dataset(X_test[val_idx], label=y_test[val_idx])
-#         # 训练
-#         clf = lgb.train(params, train_data, valid_sets=[validation_data], num_boost_round=1000)
-#         # 当前折预测
-#         clf.predict(X_train[val_idx], num_iteration=clf.best_iteration)
-#         # 加权计算预测分数
-#         test_pred_prob += clf.predict(X_test, num_iteration=clf.best_iteration) / folds_num
+# lgbm with kfold
+# 将数据根据不同策略进行分类，收益符合预期的为大于1的类别，失败例分为类别0
+# 使用lgbm框架训练，对后续数据进行预测
+# TODO：跟踪预测数据的结果，判断是否正确，重新加权训练
+def lgbmKfold(datas, labels, classes, testData=None, testLabel=None):
+    if testData == None and testLabel == None:
+        X_train,X_test,y_train,y_test=train_test_split(datas, labels, test_size=0.3, random_state=2020)
+    else:
+        X_train = datas
+        X_test = labels
+        y_train = testData
+        y_test = testLabel
+    params={
+        'boosting_type': 'gbdt',  
+        'learning_rate':0.1,
+        'lambda_l1':0.1,
+        'lambda_l2':0.2,
+        'max_depth':4,
+        'objective':'multiclass',
+        'num_class':classes,
+    }
+    # k折交叉验证
+    folds_num = 5
+    skf = StratifiedKFold(n_splits=folds_num, random_state=2020, shuffle=True)
+    test_pred_prob = np.zeros((X_test.shape[0], classes))
+    for _, (trn_idx, val_idx) in enumerate(skf.split(X_train, y_train)):
+        train_data = lgb.Dataset(X_train[trn_idx], label=y_train[trn_idx])
+        validation_data = lgb.Dataset(X_test[val_idx], label=y_test[val_idx])
+        # 训练
+        clf = lgb.train(params, train_data, valid_sets=[validation_data], num_boost_round=1000)
+        # 当前折预测
+        clf.predict(X_train[val_idx], num_iteration=clf.best_iteration)
+        # 加权计算预测分数
+        test_pred_prob += clf.predict(X_test, num_iteration=clf.best_iteration) / folds_num
 
-#     return test_pred_prob
+    return test_pred_prob
 
-# # machine learns
-# # all is over 12, and per is below 6
-# # in 5 or 10 days
-# def machine_learning():
-#     # you can use lgbm to classify successes compare to failures
+# machine learns
+# all is over 12, and per is below 6
+# in 5 or 10 days
+def machine_learning():
+    # you can use lgbm to classify successes compare to failures
     
-#     # get confirm data, select data and give label
-#     datas, labels = get_data_and_label(r'')
+    # get confirm data, select data and give label
+    data = pd.read_csv(r'', sep=',')
+    datas = data[['Id', 'Date', 'P5', 'OverTimes', 'Std']]
+    labels = np.ones(data.shape[0])
     
-#     lgbmKfold(datas, labels, 2)
-#     return
+    lgbmKfold(datas, labels, 4)
+    return
 
 
 # 统计测试drop rate
@@ -516,12 +514,10 @@ class drop_rate_test():
         for i in range(0, self.thread_num):
             t = myThread(self.filter_func, args=(sts[i],))
             tds.append(t)
-        for i in range(0, self.thread_num):
             tds[i].start()
         for i in range(0, self.thread_num):
             tds[i].join()
-        # 获取执行结果
-        for i in range(0, self.thread_num):
+            # 获取执行结果
             res += tds[i].getRes()
 
         return res
@@ -585,26 +581,26 @@ def test_func(data):
         # 评估公式: score = all_add(x - 1.06) / np.var(x)
         p, t = back_test(data, testYear, stockhold, tradingdate)
         print("total:")
-        print("5-10:" + str(t["5_10"]))
+        # print("5-10:" + str(t["5_10"]))
         # print("7:" + str(t["7"]))
         # aver += t["5_10"]
-        # print("nnn:" + str(t["nnn"]))
+        print("nnn:" + str(t["nnn"]))
 
-        np5_10 = np.array(p["5_10"])
+        # np5_10 = np.array(p["5_10"])
         # np7 = np.array(p["7"])
-        # npnnn = np.array(p["nnn"])
+        npnnn = np.array(p["nnn"])
         print("mean:")
-        print(np.mean(np5_10))
+        # print(np.mean(np5_10))
         # print(np.mean(np7))
-        # print(np.mean(npnnn))
-        score5_10 = np.mean(np5_10) / np.var(np5_10)
+        print(np.mean(npnnn))
+        # score5_10 = np.mean(np5_10) / np.var(np5_10)
         # score7 = np.mean(np7) / np.var(np7)
-        # scorennn = np.mean(npnnn) / np.var(npnnn)
+        scorennn = np.mean(npnnn) / np.var(npnnn)
         print("score:")
-        print("5-10:" + str(score5_10))
+        # print("5-10:" + str(score5_10))
         # print("7:" + str(score7))
         # score += score7
-        # print("nnn:" + str(scorennn))
+        print("nnn:" + str(scorennn))
 
     # print("aver:" + str(aver / test_batch))
     # print("score:" + str(score / test_batch))
@@ -666,14 +662,15 @@ if __name__ == "__main__":
     # 去除科创板和沪B
     data = data[data['Symbol'] < 680000]
     # data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
-    data = data[data['TradingDate'] >= 20180000]
+    data = data[data['TradingDate'] >= 20190000]
+    # 特征提取
     # e = extract_feature(data)
     # e.cal_sample()
 
     # temp_use()
-
-    test_func(data)
-
+    # 策略测试
+    # test_func(data)
+    # 最佳drop rate测试
     # f = drop_rate_test(data)
     # d = f.test_drop_rate()
     # print(np.mean(np.array(d)))
