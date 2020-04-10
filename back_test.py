@@ -13,7 +13,16 @@ import matplotlib
 from sklearn.model_selection import train_test_split,GridSearchCV,StratifiedKFold
 import sklearn
 from sklearn.externals import joblib
+import multiprocessing as mltp
 
+
+# 多进程
+def mult_pr(thread_num):
+    p = mltp.Pool(thread_num)
+    for i in range(0, thread_num):
+        p.apply_async(usrdata_func, args=(uid_lst[i], deviceModel, pkg, Vc, dis, dos,))
+    p.close()
+    p.join()
 
 #TODO: 统计last跌next高开的比例
 # 按条件生成特征，如涨7后的数据
