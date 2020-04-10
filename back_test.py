@@ -11,6 +11,8 @@ import lightgbm as lgb
 from matplotlib import pyplot as plt
 import matplotlib
 from sklearn.model_selection import train_test_split,GridSearchCV,StratifiedKFold
+import sklearn
+from sklearn.externals import joblib
 
 
 #TODO: 统计last跌next高开的比例
@@ -192,6 +194,53 @@ def back_test(data, test_years, max_stockhold, tradingdate):
     return sell, total
 
 
+# 按lgbm特征提取数据特征
+def cal_lgbm(data, date, tradingdate):
+    models = []
+    for i in range(0, 5):
+        models.append(joblib.load(r'D:\wuziyang\workfile\model' + str(i) + r'.m'))
+    res = []
+    df_group = data.groupby(by="Symbol")
+    stock_list = list(df_group.groups.keys())
+    for s in stock_list:
+        cur_data = data[data['Symbol'] == s]
+        cur_data.sort_values(by='TradingDate', ascending=True)
+        # 获取对应日期数据
+        today_indexes = tradingdate.index(date)
+        cal_date = tradingdate[today_indexes - 20: today_indexes]
+        cur_data = cur_data[cur_data['TradingDate'] >= cal_date[0]]
+        cur_data = cur_data[cur_data['TradingDate'] <= cal_date[-1]]
+        # 计算
+        if cur_data.shape[0] == 20:
+            # 预测的p
+            old_data = cur_data[:20]
+            old_data = old_data['Close'].values
+            av = np.mean(old_data)
+            std = np.std(old_data)
+            # 20天的p
+            p20 = cur_data.iloc[-1]['Close'] / cur_data.iloc[0]['Close']
+            # 10天的p
+            p10 = cur_data.iloc[-1]['Close'] / cur_data.iloc[10]['Close']
+            # 5天的p
+            p5 = cur_data.iloc[-1]['Close'] / cur_data.iloc[15]['Close']
+            # 超越均值的标准差倍数
+            over_times = (cur_data.iloc[-1]['Close'] - av) / std
+            # std比av
+            std_rate = std / av
+
+            res.append([s, date, p5, p10, p20, over_times])
+    # 保存当天数据
+    pd.DataFrame(res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'D:\wuziyang\workfile\lgbm_feature.csv')
+    test_feature = np.array(res)[:, 2:]
+    test_pred_prob = np.zeros((len(test_feature), 2))
+    for m in models:
+        test_pred_prob += m.predict(test_feature, num_iteration=m.best_iteration) / 5
+    # 保存当天数据
+    pd.DataFrame(test_pred_prob, columns=['pos', 'neg']).to_csv(r'D:\wuziyang\workfile\lgbm_class.csv')
+
+    return
+
+
 def cal_5_10(data, date, tradingdate, high_limit, low_limit):
     # 获取对应日期数据
     today_indexes = tradingdate.index(date)
@@ -200,9 +249,9 @@ def cal_5_10(data, date, tradingdate, high_limit, low_limit):
     today_data = today_data[today_data['TradingDate'] <= cal_date[5]]
     tommorow_data = data[data['TradingDate'] == tradingdate[today_indexes + 1]]
     # 计算
+    thread_num = 8
     res_list = list()
     df_group = data.groupby(by="Symbol")
-    thread_num = 8
     stock_list = list(df_group.groups.keys())
     st_lists = np.array_split(stock_list, thread_num)
     tds = []
@@ -448,12 +497,15 @@ class extract_feature():
 # 使用lgbm框架训练，对后续数据进行预测
 # TODO：跟踪预测数据的结果，判断是否正确，重新加权训练
 def lgbmKfold(datas, labels, classes, testData=None, testLabel=None):
+    # iris = sklearn.datasets.load_iris()
+    # datas = iris.data
+    # labels = iris.target
     if testData == None and testLabel == None:
-        X_train,X_test,y_train,y_test=train_test_split(datas, labels, test_size=0.3, random_state=2020)
+        X_train,X_test,y_train,y_test=train_test_split(datas, labels, test_size=0.2, random_state=2020)
     else:
         X_train = datas
-        X_test = labels
-        y_train = testData
+        X_test = testData
+        y_train = labels
         y_test = testLabel
     params={
         'boosting_type': 'gbdt',  
@@ -468,17 +520,38 @@ def lgbmKfold(datas, labels, classes, testData=None, testLabel=None):
     folds_num = 5
     skf = StratifiedKFold(n_splits=folds_num, random_state=2020, shuffle=True)
     test_pred_prob = np.zeros((X_test.shape[0], classes))
-    for _, (trn_idx, val_idx) in enumerate(skf.split(X_train, y_train)):
+    for i, (trn_idx, val_idx) in enumerate(skf.split(X_train, y_train)):
+        print(len(trn_idx))
+
+        print(len(val_idx))
         train_data = lgb.Dataset(X_train[trn_idx], label=y_train[trn_idx])
-        validation_data = lgb.Dataset(X_test[val_idx], label=y_test[val_idx])
+        validation_data = lgb.Dataset(X_train[val_idx], label=y_train[val_idx])
         # 训练
         clf = lgb.train(params, train_data, valid_sets=[validation_data], num_boost_round=1000)
-        # 当前折预测
-        clf.predict(X_train[val_idx], num_iteration=clf.best_iteration)
+        # 保存模型
+        joblib.dump(clf, r'D:\wuziyang\workfile\model' + str(i) + r'.m')
+        # # 当前折预测
+        # clf.predict(X_train[val_idx], num_iteration=clf.best_iteration)
         # 加权计算预测分数
         test_pred_prob += clf.predict(X_test, num_iteration=clf.best_iteration) / folds_num
+    
+    pred_class = test_pred_prob.argmax(axis=1)
+    # 获取预测正样本下标
+    pos_indexes = np.argwhere(pred_class == 0)
+    # 计算正样本预测正确概率
+    correct_num = len(np.argwhere(y_test[pos_indexes] == 0))
+    print(len(pos_indexes))
+    print(correct_num)
+    # 获取预测负样本下标
+    neg_indexes = np.argwhere(pred_class == 1)
+    # 计算负样本预测正确概率
+    neg_error_num = len(np.argwhere(y_test[neg_indexes] == 0))
+    print(len(neg_indexes))
+    print(neg_error_num)
 
-    return test_pred_prob
+    # correct = sum(pred_class==y_test)
+    # print("accuracy:" + str(correct / len(pred_class)))
+    return pred_class
 
 # machine learns
 # all is over 12, and per is below 6
@@ -487,11 +560,18 @@ def machine_learning():
     # you can use lgbm to classify successes compare to failures
     
     # get confirm data, select data and give label
-    data = pd.read_csv(r'', sep=',')
-    datas = data[['Id', 'Date', 'P5', 'OverTimes', 'Std']]
-    labels = np.ones(data.shape[0])
+    pos_data = pd.read_csv(r'D:\wuziyang\workfile\pos.csv', sep=',')
+    pos_datas = pos_data[['P5', 'P10', 'P20', 'OverTimes']]
+    labels = [0 for i in range(0, pos_datas.shape[0])]
+    datas = pos_datas
+
+    neg_data = pd.read_csv(r'D:\wuziyang\workfile\neg.csv', sep=',')
+    neg_datas = neg_data[['P5', 'P10', 'P20', 'OverTimes']]
+    labels += [1 for i in range(0, neg_datas.shape[0])]
+    datas = datas.append(neg_datas)
     
-    lgbmKfold(datas, labels, 4)
+    ret = lgbmKfold(np.array(datas), np.array(labels), 2)
+    print(ret)
     return
 
 
@@ -648,6 +728,7 @@ def temp_use():
     plt.show()
 
 
+
 if __name__ == "__main__":
     print("start...")
     startt = time.time()
@@ -662,7 +743,7 @@ if __name__ == "__main__":
     # 去除科创板和沪B
     data = data[data['Symbol'] < 680000]
     # data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
-    data = data[data['TradingDate'] >= 20190000]
+    data = data[data['TradingDate'] >= 20200000]
     # 特征提取
     # e = extract_feature(data)
     # e.cal_sample()
@@ -676,6 +757,14 @@ if __name__ == "__main__":
     # print(np.mean(np.array(d)))
     # print(np.std(np.array(d)))
     
+    # # 生成一天的ml测试数据
+    # df_group = data.groupby(by="TradingDate")
+    # tradingdate = list(df_group.groups.keys())
+    # cal_lgbm(data, 20200306, tradingdate)
+
+    # ml
+    machine_learning()
+
     earn_logger.close
     loss_logger.close
 
