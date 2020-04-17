@@ -16,13 +16,13 @@ from sklearn.externals import joblib
 import multiprocessing as mltp
 
 
-# 多进程
-def mult_pr(thread_num):
-    p = mltp.Pool(thread_num)
-    for i in range(0, thread_num):
-        p.apply_async(usrdata_func, args=(uid_lst[i], deviceModel, pkg, Vc, dis, dos,))
-    p.close()
-    p.join()
+# # 多进程
+# def mult_pr(thread_num):
+#     p = mltp.Pool(thread_num)
+#     for i in range(0, thread_num):
+#         p.apply_async(usrdata_func, args=(uid_lst[i], deviceModel, pkg, Vc, dis, dos,))
+#     p.close()
+#     p.join()
 
 #TODO: 统计last跌next高开的比例
 # 按条件生成特征，如涨7后的数据
@@ -50,9 +50,9 @@ class myThread(td.Thread):
 class HoldStock():
     # 计算卖出日期与利率
     def cal_sell(self):
-        hold_max_day = 5
-        sell_max_profit = 1.15
-        sell_min_profit = 0.94
+        hold_max_day = 60
+        sell_max_profit = 1.10
+        # sell_min_profit = 0.94
         drop_limit = 0.03
         max_profit = 1.0
         if self.data.shape[0] >= hold_max_day + 1:
@@ -61,24 +61,24 @@ class HoldStock():
                 if self.p > max_profit:
                     max_profit = self.p
                 self.enddate = self.data.iloc[i]["TradingDate"]
-                self.holdday += 1
+                # self.holdday += 1
                 # 满足条件提前终止循环,由于backtest逻辑，因此不需要处理当日卖出情况
                 if self.p > sell_max_profit:
                     if self.p <= max_profit - drop_limit:
-                        earn_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
-                            .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
-                        earn_logger.writelines('\n')
+                        # earn_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
+                        #     .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
+                        # earn_logger.writelines('\n')
                         break
                     # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
                     # break
                 # if self.p < sell_min_profit and self.holdday > 1:
-                if self.p < sell_min_profit or (self.holdday >= 3 and self.p <= 1.06):
-                    self.p *= data.iloc[i]['Close'] / data.iloc[i + 1]['Open']
-                    loss_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
-                        .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
-                    loss_logger.writelines('\n')
-                    # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
-                    break
+                # if self.p < sell_min_profit or (self.holdday >= 3 and self.p <= 1.06):
+                #     self.p *= data.iloc[i]['Close'] / data.iloc[i + 1]['Open']
+                #     loss_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
+                #         .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
+                #     loss_logger.writelines('\n')
+                #     # self.p *= data.iloc[i + 1]['Open'] / data.iloc[i]['Close']
+                #     break
             # earn_logger.writelines("ID:{},GetDate:{},SellDate:{},Profit:{}"\
             #     .format(self.symbol, self.data.iloc[0]['TradingDate'], self.enddate, self.p))
             # earn_logger.writelines('\n')
@@ -583,6 +583,57 @@ def machine_learning():
     print(ret)
     return
 
+# 统计测试均值回归
+def AverRegression_test(data,tradingdate):
+    # 计算日期
+    cal_date = tradingdate[60:-60]
+    # 创建策略总值map,余额总值map
+    total = 1.0
+    balance = 1.0
+    # 记录持股
+    stock_hold = []
+    # 记录每次卖出收益
+    sell = []
+    # 回测开始
+    for day in cal_date:
+        if len(stock_hold) < 5:
+            # 获取筛选结果
+            sel_s = cal_AverRegression(data, day, tradingdate)
+            for i in range(0, 5 - len(stock_hold)):
+                if len(sel_s) > i:
+                    stock_data = data[data['Symbol'] == sel_s[i][0]]
+                    stock_data = stock_data[stock_data['TradingDate'] > day]
+                    spend = min(balance, total / 5)
+                    balance -= spend
+                    stock_hold.append(HoldStock(sel_s[i][0], spend, stock_data))
+        for hold in stock_hold:
+            if int(day) == int(hold.enddate):
+                total += hold.amount * (hold.p - 1)
+                balance += hold.amount * hold.p
+                sell.append(hold.p)
+                stock_hold.remove(hold)
+                del hold
+    print(total)
+    print(np.average(np.array(sell)))
+    return
+# 均值回归
+def cal_AverRegression(data, day, tradingdate):
+    res = []
+    today_indexes = tradingdate.index(day)
+    cur_data = data[data['TradingDate'] >= tradingdate[today_indexes - 60]]
+    cur_data = cur_data[cur_data['TradingDate'] <= day]
+    df_group = cur_data.groupby(by="Symbol")
+    stocks = list(df_group.groups.keys())
+    for i in stocks:
+        this_data = cur_data[cur_data['Symbol'] == i]
+        if this_data.shape[0] == 60:
+            this_data = this_data[['Close']]
+            data_array = np.array(this_data)
+            post_aver = np.average(data_array[:60])
+            if post_aver > data_array[-1]:
+                res.append([i, post_aver / data_array[-1]])
+    res = sorted(res, key=lambda x: x[-1], reverse=True)
+    return res
 
 # 统计测试drop rate
 class drop_rate_test():
@@ -736,6 +787,35 @@ def temp_use():
 
     plt.show()
 
+#
+def test(data, tradingdate):
+    df_group = data.groupby(by="Symbol")
+    stocks = list(df_group.groups.keys())
+    add = np.arange(0,300,10)# num/2
+    num = 160# np.arrange(60,120,10)
+    print(tradingdate[num])
+    count = 0
+    p_count = 0
+    res = []
+    print(len(stocks))
+    for i in stocks:
+        c_d = data[data['Symbol'] == i]
+        c_d = np.array(c_d[['Close']])
+        if len(c_d) >= num * 2 + add:
+            c_d = c_d[add: 2 * num - 1 + add]
+            p_aver = np.average(c_d[:num])
+            if p_aver > c_d[num]:
+                count += 1
+                res.append(i)
+                if max(c_d[num + 1:]) > c_d[num] * 1.1:
+                    p_count += 1
+    print(count)
+    print(p_count)
+    print('------')
+    # pd.DataFrame(res, columns=['id']).to_csv(r'D:\wuziyang\test.csv', index=False)
+
+
+
 
 
 if __name__ == "__main__":
@@ -752,7 +832,7 @@ if __name__ == "__main__":
     # 去除科创板和沪B
     data = data[data['Symbol'] < 680000]
     # data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
-    data = data[data['TradingDate'] >= 20200000]
+    data = data[data['TradingDate'] >= 20180000]
     # 特征提取
     # e = extract_feature(data)
     # e.cal_sample()
@@ -767,12 +847,15 @@ if __name__ == "__main__":
     # print(np.std(np.array(d)))
     
     # # 生成一天的ml测试数据
-    # df_group = data.groupby(by="TradingDate")
-    # tradingdate = list(df_group.groups.keys())
+    df_group = data.groupby(by="TradingDate")
+    tradingdate = list(df_group.groups.keys())
     # cal_lgbm(data, 20200306, tradingdate)
 
-    # ml
-    machine_learning()
+    # # ml
+    # machine_learning()
+
+    # AverRegression_test(data, tradingdate)
+    test(data, tradingdate)
 
     earn_logger.close
     loss_logger.close
