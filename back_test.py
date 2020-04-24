@@ -14,7 +14,8 @@ from sklearn.model_selection import train_test_split,GridSearchCV,StratifiedKFol
 import sklearn
 from sklearn.externals import joblib
 import multiprocessing as mltp
-
+import tushare as ts
+import heapq
 
 # # 多进程
 # def mult_pr(thread_num):
@@ -791,31 +792,85 @@ def temp_use():
 def test(data, tradingdate):
     df_group = data.groupby(by="Symbol")
     stocks = list(df_group.groups.keys())
-    add = np.arange(0,300,10)# num/2
-    num = 160# np.arrange(60,120,10)
+    num = 80# np.arrange(60,120,10)
+    add = np.arange(0,200,10)# num/2
     print(tradingdate[num])
-    count = 0
-    p_count = 0
-    res = []
     print(len(stocks))
-    for i in stocks:
-        c_d = data[data['Symbol'] == i]
-        c_d = np.array(c_d[['Close']])
-        if len(c_d) >= num * 2 + add:
-            c_d = c_d[add: 2 * num - 1 + add]
-            p_aver = np.average(c_d[:num])
-            if p_aver > c_d[num]:
-                count += 1
-                res.append(i)
-                if max(c_d[num + 1:]) > c_d[num] * 1.1:
-                    p_count += 1
-    print(count)
-    print(p_count)
-    print('------')
+    for k in range(0, len(add)):
+        count = 0
+        p_count = 0
+        over_count = 0
+        res = []
+        for i in stocks:
+            c_d = data[data['Symbol'] == i]
+            c_d = np.array(c_d[['Close']])
+            if len(c_d) >= num * 1.5 + add[k]:
+                c_d = c_d[add[k]: 2 * num - 1 + add[k]]
+                p_aver = np.average(c_d[:num])
+                p_std = np.std(c_d[:num])
+                p_max = max(c_d[:num])
+                p_min = min(c_d[:num])
+                p_mid = (p_max + p_min) / 2
+                if p_aver - 1 * p_std > c_d[num] and c_d[num] / c_d[num - 4] > 1.1:
+                    count += 1
+                    # res.append(i)
+                    if max(c_d[num + 1:]) > c_d[num] * 1.1:
+                        p_count += 1
+                        res.append(1.1)
+                    else:
+                        res.append(min(c_d[num + 1:]) / c_d[num])
+                    # if max(c_d[num + 1:]) > c_d[num] * 1.08:
+                    #     over_count += 1
+        print(count)
+        print(p_count)
+        print(over_count)
+        print(np.average(np.array(res)))
+        print('------')
     # pd.DataFrame(res, columns=['id']).to_csv(r'D:\wuziyang\test.csv', index=False)
 
 
+# KNN
+def knn(data):
+    return
 
+
+# 获取某日涨幅前5概念股
+# 输入数据为单日数据
+def get_concept_stock(data):
+    # 获取股票所属行业
+    # ts.get_industry_classified()
+    # 获取股票所属概念
+    concept_df = ts.get_concept_classified()
+    concept_group = concept_df.groupby(by="c_name")
+    c_name = list(concept_group.groups.keys())
+    concept_changerate = []
+    # 计算各概念
+    for i in c_name:
+        cur_df = concept_df[concept_df['c_name'] == i]
+        code_group = cur_df.groupby(by="code")
+        code = list(code_group.groups.keys())
+        # 计算涨跌幅
+        concept_open = 0
+        concept_close = 0
+        for j in code:
+            this_data = data[data['Symbol'] == j]
+            concept_close += this_data['Close']
+            concept_open += this_data['Open']
+        
+        concept_changerate += concept_close / concept_open
+    # 获取涨幅前5概念下标
+    upper_concept = heapq.nlargest(5, range(len(concept_changerate)), concept_changerate.take)
+    # 只计算前5概念的股票
+    for i in upper_concept:
+        # 要涨
+        if concept_changerate[i] > 1:
+            cur_df = concept_df[concept_df['c_name'] == c_name[i]]
+
+
+            
+
+    df[df[''].isin()]
+    heapq.nlargest(5, range(len(a)), a.take)
 
 
 if __name__ == "__main__":
@@ -832,7 +887,7 @@ if __name__ == "__main__":
     # 去除科创板和沪B
     data = data[data['Symbol'] < 680000]
     # data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
-    data = data[data['TradingDate'] >= 20180000]
+    # data = data[data['TradingDate'] >= 20180000]
     # 特征提取
     # e = extract_feature(data)
     # e.cal_sample()
