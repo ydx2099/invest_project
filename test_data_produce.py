@@ -282,7 +282,7 @@ def cal_7(data, date):
 
     # 转为dataframe输出
     confirm_df = pd.DataFrame(filter_data, columns=['Symbol'])
-    confirm_df.to_csv(path_over7 + str(date) + '.csv', index=False)                
+    confirm_df.to_csv('D:/wuziyang/workfile/_7_' + str(date) + '.csv', index=False)                
 
     return filter_data
 
@@ -300,7 +300,7 @@ def cal_nnn(data, date):
 
     # 转为dataframe输出
     confirm_df = pd.DataFrame(filter_data, columns=['Symbol'])
-    confirm_df.to_csv(path_nnn + str(date) + '.csv', index=False)                
+    confirm_df.to_csv('D:/wuziyang/workfile/nnn_' + str(date) + '.csv', index=False)                
 
     return filter_data
 
@@ -432,32 +432,46 @@ def cal_5_10(data):
         # 计算
         cur_p = 1.0
         data_size = cur_data.shape[0]
-        if data_size >= 5:
+        if data_size >= 65:
             for j in range(0, 5):
                 # 取最近五天数据
                 cur_p *= (cur_data.iloc[data_size + j - 5]['ChangeRatio'] + 1)
             cur_p = cur_p - 1
             if cur_p > 0.1:
-                filter_data.append([i, cur_p])
+                cur_close = cur_data[['Close']].values
+                # 获取5天前的收盘价
+                recent_close = cur_close[-65:-5]
+                # 获取均值和方差
+                recent_average = np.average(recent_close)
+                recent_std = np.std(recent_close)
+                # 获取最高价
+                recent_max = max(recent_close)
+                # 从最高那天起，寻找最低
+                recent_close = recent_close[np.argmax(recent_close):]
+                # recent_min = min(recent_close)
+                # # 以2/3和1/3的权重根据min和max计算中间值
+                # recent_mid = 1/3 * recent_max + 2/3 * recent_min
+                if recent_average - recent_std > cur_close[-1] and np.argmin(recent_close) > len(recent_close) - 3:
+                    filter_data.append([i, cur_p])
     # 按利率从高到低排序
     filter_data.sort(key=(lambda x: x[-1]))
     # 获取计算日期
     cal_date = list(data.groupby(by="TradingDate").groups.keys())[-1]
     # 转为dataframe输出
     filter_df = pd.DataFrame(filter_data, columns=['Symbol', 'Profit'])
-    filter_df.to_csv(_path_5_10 + "test_data/" + str(cal_date) + '.csv', index=False)             
+    filter_df.to_csv('D:/wuziyang/workfile/_510_' + str(cal_date) + '.csv', index=False)             
 
 
 if __name__ == "__main__":
-    data_path = r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv'
+    data_path = r'D:\wuziyang\workfile\stock_latest.csv'
     data = pd.read_csv(data_path, sep=',', low_memory=False)
 
     # # 合并下载数据出错时简单回退
     # data = data[data['TradingDate'] <= 20200209]
     # data.to_csv(r'C:\Users\wuziyang\Documents\PyWork\trading_simulation\data\stockdata\stock_latest.csv', index=False)
     
-    # 精简数据
-    data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
+    # # 精简数据
+    # data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
     # 去除科创板和沪B
     data = data[data['Symbol'] < 680000]
     # 删除涨跌幅为nan的行
@@ -491,14 +505,15 @@ if __name__ == "__main__":
     # print(up)
     # print(down)
 
-    # 涨7策略
-    cal_7(yestoday_data, last_tradingdate)
+    # # 涨7策略
+    # cal_7(yestoday_data, last_tradingdate)
 
-    # 连涨策略
-    cal_nnn(last_n_data, last_tradingdate)
+    # # 连涨策略
+    # cal_nnn(last_n_data, last_tradingdate)
 
     # n天涨n策略
-    cal_5_10(rec_data)
+    data = data[data['TradingDate'] <= 20190700]
+    cal_5_10(data)
 
     # # test 5days, rate -5, confirm 50days
     # test_data_produce(rec_data, 5, -0.05, path_5_5, False)
