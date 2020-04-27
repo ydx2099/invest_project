@@ -288,19 +288,35 @@ def cal_7(data, date):
 
 
 # n天连涨策略
-def cal_nnn(data, date):
+def cal_nnn(data):
     filter_data = list()
     df_group = data.groupby(by="Symbol")
     stock_list = list(df_group.groups.keys())
     for i in stock_list:
         cur_data = data[data['Symbol'] == i]
-        for j in range(0, cur_data.shape[0] - 2):
-            if cur_data.iloc[j]['ChangeRatio'] > 0 and cur_data.iloc[j + 1]['ChangeRatio'] > 0 and cur_data.iloc[j + 2]['ChangeRatio'] > 0:
-                filter_data.append(cur_data.iloc[j + 2]['Symbol'])
+        cur_len = cur_data.shape[0]
+        if cur_len > 33:
+            if cur_data.iloc[cur_len - 1]['ChangeRatio'] > 0 and cur_data.iloc[cur_len - 2]['ChangeRatio'] > 0 and cur_data.iloc[cur_len - 3]['ChangeRatio'] > 0:
+                cur_close = cur_data[['Close']].values
+                # 获取33天前的收盘价
+                recent_close = cur_close[-33:-3]
+                # 获取均值和方差
+                recent_average = np.average(recent_close)
+                recent_std = np.std(recent_close)
+                # 从最高那天起，寻找最低
+                recent_close = recent_close[np.argmax(recent_close):]
+                a = np.argmin(recent_close)
+                b = len(recent_close) - 1
+                # if recent_average < cur_close[-1] and a == b and b > 5:
+                if np.argmax(cur_close) == len(cur_close) - 1:
+                    filter_data.append(i)
 
+
+    # 获取计算日期
+    cal_date = list(data.groupby(by="TradingDate").groups.keys())[-1]
     # 转为dataframe输出
     confirm_df = pd.DataFrame(filter_data, columns=['Symbol'])
-    confirm_df.to_csv('D:/wuziyang/workfile/nnn_' + str(date) + '.csv', index=False)                
+    confirm_df.to_csv('D:/wuziyang/workfile/nnn_' + str(cal_date) + '.csv', index=False)                
 
     return filter_data
 
@@ -319,106 +335,6 @@ def get_end_profit(data):
             max_p = end_p
     return end_p, max_p
 
-# 回测
-# 对所有策略以最近n年数据进行测试
-# 设置最大同时持股数，当前为5，后续随资金量增长可设置更大值
-
-# 需要一种方法衡量策略的风险
-def back_test(data, test_years, max_stockhold, cal_days):
-    # 交易频率(天)
-    up10_trading_freq = 10 
-    down_trading_freq = 20
-    # 记录回测所有持股
-    all_up_hold = []
-    all_down_hold = []
-    # 最小持股数 = (最大持股数 / 2) + 1
-    # min_stockhold = max_stockhold / 2 + 1
-    start_date = today - test_years * 10000
-    use_data = data[data['TradingDate'] >= start_date - 200]
-    # 记录持股
-    stock_hold_up10 = []
-    stock_hold_down10 = []
-    stock_hold_7 = []
-    # 记录收益
-    profit_up10 = [1.0, 1.0]
-    profit_down10 = [1.0, 1.0]
-    profit_7 = 1.0
-
-    # n天涨跌n%策略
-    # 测试方法为每两个月按策略进行买入卖出，计算最终收益
-    # 一个月为买入期，一个月为卖出期
-    for y in range(0, test_years):
-        for i in range(0, test_years * 6):
-            # 计算收益
-            if not i == 0:  
-                cal_data = use_data[use_data['TradingDate'] <= start_date + y * 10000 + i * 100]
-                cur_profit_up10 = [0.0, 0.0]
-                cur_profit_downc10 = [0.0, 0.0]
-                # 计算每只持有股票的最终/最高收益
-                for stock in stock_hold_up10:
-                    stock_data = cal_data[cal_data['Symbol'] == stock['Symbol']]
-                    stock_data = stock_data[stock_data['TradingDate'] > stock['TradingDate']]
-                    end_p, max_p = get_end_profit(stock_data)
-                    cur_profit_up10[0] += end_p
-                    cur_profit_up10[1] += max_p
-                    
-                for stock in stock_hold_down10:
-                    stock_data = cal_data[cal_data['Symbol'] == stock['Symbol']]
-                    stock_data = stock_data[stock_data['TradingDate'] > stock['TradingDate']]
-                    end_p, max_p = get_end_profit(stock_data)
-                    cur_profit_downc10[0] += end_p
-                    cur_profit_downc10[1] += max_p
-
-                cur_profit_up10[0] /= len(stock_hold_up10)
-                cur_profit_up10[1] /= len(stock_hold_up10)
-                cur_profit_downc10[0] /= len(stock_hold_down10)
-                cur_profit_downc10[1] /= len(stock_hold_up10)
-                # 更新profit
-                profit_up10[0] *= cur_profit_up10[0]
-                profit_up10[1] *= cur_profit_up10[1]
-                profit_down10[0] *= cur_profit_downc10[0]
-                profit_down10[1] *= cur_profit_downc10[1]
-                
-            # 取出当前批次数据
-            cur_batch_data = use_data[use_data['TradingDate'] <= start_date + y * 10000 + i * 100]
-            cur_batch_data = cur_batch_data[cur_batch_data['TradingDate'] >= start_date + y * 10000 + (i - 1) * 100]
-
-            # 计算下一批次所选股票
-            simu_cal_data = cal_profit(cur_batch_data, cal_days, True)
-            simu_cal_up10_data = simu_cal_data[simu_cal_data['ChangeRatio'] >= 0.1]
-            simu_cal_down10_data = simu_cal_data[simu_cal_data['ChangeRatio'] <= -0.1]
-            # simu_cal10_data = cal_profit(cur_batch_data, 10, True)
-            # 按最终涨幅排序，从高到低
-            simu_cal_up10_data = simu_cal_up10_data.sort_values(by='ChangeRatio', ascending=False)
-            simu_cal_down10_data = simu_cal_down10_data.sort_values(by='ChangeRatio', ascending=False)
-            # 先清空持股记录
-            stock_hold_up10 = []
-            stock_hold_down10 = []
-            # 持有股票
-            for j in range(0, min(max_stockhold, simu_cal_up10_data.shape[0])):
-                stock_hold_up10.append(simu_cal_up10_data.iloc[j])
-                all_up_hold.append([simu_cal_up10_data.iloc[j]['Symbol'], simu_cal_up10_data.iloc[j]['TradingDate']])
-
-            for j in range(0, min(max_stockhold, simu_cal_down10_data.shape[0])):
-                stock_hold_down10.append(simu_cal_down10_data.iloc[j])
-                all_down_hold.append([simu_cal_up10_data.iloc[j]['Symbol'], simu_cal_up10_data.iloc[j]['TradingDate']])
-
-
-
-    # # 涨7策略执行短线交易，每当拥有现金即进行交易
-    # # 设置最大持有天数，暂为10个交易日
-    # # 测试为简便起见，以10个交易日为一个交易周期
-    # df_group = data.groupby(by="TradingDate")
-    # date_list = list(df_group.groups.keys())
-    # for i in date_list:
-    #     cur_day_data = use_data[use_data['TradingDate'] == i]
-    #     simu_7_data = cal_7(cur_batch_data, i)
-
-    # 打印回测过程的持股
-    pd.DataFrame(all_up_hold, columns=['Symbol', 'TradingDate']).to_csv(r'C:\Users\wuziyang\Desktop\up' + str(cal_days) + '.csv')
-    pd.DataFrame(all_down_hold, columns=['Symbol', 'TradingDate']).to_csv(r'C:\Users\wuziyang\Desktop\down' + str(cal_days) + '.csv')
-        
-    return profit_up10, profit_down10
 
 # 计算最近一个交易日的5-10策略5
 def cal_5_10(data):
@@ -432,26 +348,27 @@ def cal_5_10(data):
         # 计算
         cur_p = 1.0
         data_size = cur_data.shape[0]
-        if data_size >= 65:
-            for j in range(0, 5):
+        if data_size >= 20:
+            for j in range(0, 20):
                 # 取最近五天数据
-                cur_p *= (cur_data.iloc[data_size + j - 5]['ChangeRatio'] + 1)
+                cur_p *= (cur_data.iloc[data_size + j - 20]['ChangeRatio'] + 1)
             cur_p = cur_p - 1
-            if cur_p > 0.1:
+            if cur_p > 0.15:
                 cur_close = cur_data[['Close']].values
                 # 获取5天前的收盘价
-                recent_close = cur_close[-65:-5]
-                # 获取均值和方差
-                recent_average = np.average(recent_close)
-                recent_std = np.std(recent_close)
-                # 获取最高价
-                recent_max = max(recent_close)
-                # 从最高那天起，寻找最低
-                recent_close = recent_close[np.argmax(recent_close):]
-                # recent_min = min(recent_close)
-                # # 以2/3和1/3的权重根据min和max计算中间值
-                # recent_mid = 1/3 * recent_max + 2/3 * recent_min
-                if recent_average - recent_std > cur_close[-1] and np.argmin(recent_close) > len(recent_close) - 3:
+                recent_close = cur_close[-20:]
+                # # 获取均值和方差
+                # recent_average = np.average(recent_close)
+                # recent_std = np.std(recent_close)
+                # # 获取最高价
+                # recent_max = max(recent_close)
+                # # 从最高那天起，寻找最低
+                # recent_close = recent_close[np.argmax(recent_close):]
+                # # recent_min = min(recent_close)
+                # # # 以2/3和1/3的权重根据min和max计算中间值
+                # # recent_mid = 1/3 * recent_max + 2/3 * recent_min
+                # if recent_average > cur_close[-1] and np.argmin(recent_close) > len(recent_close) - 5 and len(recent_close) > 10:
+                if np.argmax(cur_close) == len(cur_close) - 1:
                     filter_data.append([i, cur_p])
     # 按利率从高到低排序
     filter_data.sort(key=(lambda x: x[-1]))
@@ -512,8 +429,9 @@ if __name__ == "__main__":
     # cal_nnn(last_n_data, last_tradingdate)
 
     # n天涨n策略
-    data = data[data['TradingDate'] <= 20190700]
-    cal_5_10(data)
+    data = data[data['TradingDate'] <= 20190500]
+    cal_nnn(data)
+    # cal_5_10(data)
 
     # # test 5days, rate -5, confirm 50days
     # test_data_produce(rec_data, 5, -0.05, path_5_5, False)
