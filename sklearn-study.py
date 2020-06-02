@@ -89,16 +89,18 @@ def lgbm(datas, labels, classes, testData=None, testLabel=None):
         'objective':'multiclass',
         'num_class':classes,
     }
-    train_data = lgb.Dataset(X_train, label=y_train)
-    validation_data = lgb.Dataset(X_test, label=y_test)
+    # 加入验证集
+    x_t, x_valid, y_t, y_valid = train_test_split(X_train, y_train, test_size=0.2, random_state=2020)
+    train_data = lgb.Dataset(x_t, label=y_t)
+    validation_data = lgb.Dataset(x_valid, label=y_valid)
     # 训练
     clf = lgb.train(params, train_data, valid_sets=[validation_data], num_boost_round=1000)
     # # 保存模型
     # joblib.dump(clf, r'D:\wuziyang\workfile\model' + str(i) + r'.m')
     # # 当前折预测
     # clf.predict(X_train[val_idx], num_iteration=clf.best_iteration)
-    # # 加权计算预测分数
-    # test_pred_prob += clf.predict(X_test, num_iteration=clf.best_iteration) / folds_num
+    # 加权计算预测分数
+    test_pred_prob += clf.predict(X_test, num_iteration=clf.best_iteration)
     
     # pred_class = test_pred_prob.argmax(axis=1)
     # # 获取预测正样本下标
@@ -174,8 +176,19 @@ if __name__ == "__main__":
 
     # 计算score
     score = 0.0
-    for clf in clfs:
-        print(clf.predict(pos_datas.iloc[0]))
+    for i in range(0, 100):
+        for clf in clfs:
+            score += clf.predict(pos_datas.iloc[i])[0]
+
+        print(score / 10)
+        score = 0.0
+    
+    for i in range(0, 100):
+        for clf in clfs:
+            score += clf.predict(neg_datas.iloc[i])[0]
+
+        print(score / 10)
+        score = 0.0
 
     # label_ls = [pos_datas.shape[0], pos_datas[0].shape[0]]
     # print(ret)
