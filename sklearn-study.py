@@ -1,3 +1,4 @@
+from sklearn.externals import joblib
 from sklearn import tree
 from sklearn.datasets import load_wine
 from sklearn.model_selection import train_test_split
@@ -9,7 +10,8 @@ from sklearn.metrics import f1_score
 import sklearn
 import pandas as pd
 import numpy as np
-
+from matplotlib import pyplot as plt
+import math
 
 def lgbmKfold(datas, labels, classes, testData=None, testLabel=None):
     # iris = sklearn.datasets.load_iris()
@@ -100,7 +102,7 @@ def lgbm(datas, labels, classes, testData=None, testLabel=None):
     # # 当前折预测
     # clf.predict(X_train[val_idx], num_iteration=clf.best_iteration)
     # 加权计算预测分数
-    test_pred_prob += clf.predict(X_test, num_iteration=clf.best_iteration)
+    # test_pred_prob += clf.predict(X_test, num_iteration=clf.best_iteration)
     
     # pred_class = test_pred_prob.argmax(axis=1)
     # # 获取预测正样本下标
@@ -140,7 +142,7 @@ def DecisionTree(data, label, label_ls):
     print(score)
 
     # feature_name = ['alcohol', 'malic_acid', 'ash', 'alcalinity_of_ash', 'magnesium', 'total_phenols', 'flavanoids', 'nonflavanoid_phenols', 'proanthocyanins', 'color_intensity', 'hue', 'od280/od315_of_diluted_wines', 'proline']
-    feature_name = ['P5', 'P10', 'P20', 'OverTimes']
+    feature_name = ['P5', 'P10', 'P20', 'OverTimes', 'Std']
 
     import graphviz
     dot_data = tree.export_graphviz(clf, feature_names=feature_name, class_names=['1','2'], filled=True, rounded=True)
@@ -150,45 +152,119 @@ def DecisionTree(data, label, label_ls):
     print(list(zip(feature_name, clf.feature_importances_)))
 
 if __name__ == "__main__":
+    neg_rate = 5
     # 设置多组相同数据量的正负样本集
-    dataset_num = 10
-    # get data
-    # 正样本
-    pos_data = pd.read_csv(r'D:\wuziyang\workfile\pos.csv', sep=',')
-    pos_datas = pos_data[['P5', 'P10', 'P20', 'OverTimes']]
-    labels = [0 for i in range(0, pos_datas.shape[0])]
-    datas = [[] for _ in range(10)]
-    # # 按样本集数填正样本数据
+    dataset_num = 20
+    # # get data
+    # # 正样本
+    # pos_data = pd.read_csv(r'D:\wuziyang\workfile\pos3.csv', sep=',')
+    # pos_datas = pos_data[['P5', 'P10', 'P20', 'OverTimes', 'Std']]
+    # labels = [0 for i in range(0, pos_datas.shape[0])]
+    # datas = [[] for _ in range(dataset_num)]
+    # # # 按样本集数填正样本数据
+    # # for i in np.arange(0, dataset_num, 1):
+    # #     datas[i].append(pos_datas.values)
+    # # # mid样本
+    # # mid_data = pd.read_csv(r'D:\wuziyang\workfile\mid3.csv', sep=',')
+    # # mid_data = mid_data[['P5', 'P10', 'P20', 'OverTimes', 'Std']]
+
+    # # 负样本
+    # neg_data = pd.read_csv(r'D:\wuziyang\workfile\neg3.csv', sep=',')
+    # neg_datas = neg_data[['P5', 'P10', 'P20', 'OverTimes', 'Std']]
+    # # datas = datas.append(neg_datas)
     # for i in np.arange(0, dataset_num, 1):
-    #     datas[i].append(pos_datas.values)
-    # 负样本
-    neg_data = pd.read_csv(r'D:\wuziyang\workfile\neg.csv', sep=',')
-    neg_datas = neg_data[['P5', 'P10', 'P20', 'OverTimes']]
-    # datas = datas.append(neg_datas)
-    for i in np.arange(0, dataset_num, 1):
-        datas[i] = pos_datas.append(neg_datas.sample(n=pos_datas.shape[0], replace=False, axis=0)).values
-    # 此处label负标签设置与正标签相同数量，用于均衡预测
-    labels += [1 for i in range(0, pos_datas.shape[0])]
-    # 直接使用lgbm，不用k折交叉验证
+    #     datas[i] = pos_datas.append(neg_datas.sample(n=neg_rate * pos_datas.shape[0], replace=False, axis=0)).values
+    
+    # # 此处label负标签设置与正标签相同数量，用于均衡预测
+    # labels += [1 for i in range(0, neg_rate * pos_datas.shape[0])]
+    # # labels += [2 for i in range(0, pos_datas.shape[0])]
+    # # 直接使用lgbm，不用k折交叉验证
+    # clfs = []
+    # for i in np.arange(0, dataset_num, 1):
+    #     clfs.append(lgbm(np.array(datas[i]), np.array(labels), 2))
+
+    # for i in range(len(clfs)):
+    #     # 保存模型
+    #     joblib.dump(clfs[i], r'D:\wuziyang\workfile\cur_model' + str(i) + r'.m')
+
     clfs = []
-    for i in np.arange(0, dataset_num, 1):
-        clfs.append(lgbm(np.array(datas[i]), np.array(labels), 2))
+    for i in range(dataset_num):
+        # 加载模型
+        clfs.append(joblib.load(filename=r'D:\wuziyang\workfile\cur_model' + str(i) + r'.m'))
+
+    pos_valid = pd.read_csv(r'D:\wuziyang\workfile\pos3_valid.csv', sep=',')
+    pos_valid = pos_valid[['P5', 'P10', 'P20', 'OverTimes', 'Std']]
+    neg_valid = pd.read_csv(r'D:\wuziyang\workfile\neg3_valid.csv', sep=',')
+    neg_valid = neg_valid[['P5', 'P10', 'P20', 'OverTimes', 'Std']]
+
+    # 用验证集测试性能
+    weights = []
+    F2TRates = []
+    for clf in clfs:
+        amount = 1000
+        f2tnum = 0
+        res = clf.predict(neg_valid.iloc[100:1100])
+        for i in range(1000):
+            if res[i][0] > 0.8:
+                f2tnum += 1
+
+        F2TRates.append(f2tnum / amount)
+
+    # 计算e
+    expRates = []
+    for i in F2TRates:
+        expRates.append(math.exp(i))
+
+    # 计算权重
+    sum_exp = np.sum(np.array(expRates))
+    for i in expRates:
+        weights.append(i / sum_exp)
+    best_clf = np.argmin(np.array(F2TRates))
+    worst_clf = np.argmax(np.array(F2TRates))
+
+    plot_range = list(np.arange(0, 1, 0.1))
 
     # 计算score
     score = 0.0
-    for i in range(0, 100):
-        for clf in clfs:
-            score += clf.predict(pos_datas.iloc[i])[0]
+    neg_scores = np.zeros([1, neg_valid.shape[0]])
+    # for i in range(neg_valid.shape[0]):
+    for j in range(len(clfs)):
+        # score += clfs[j].predict(neg_valid.iloc[i])[0] * weights[j]
+        pred_res = clfs[j].predict(neg_valid.values)
+        neg_scores += pred_res[:, 0] * weights[j]
+    # score = clfs[best_clf].predict(neg_valid.iloc[i])[0]
+    # score = clfs[worst_clf].predict(neg_valid.iloc[i])[0]
 
-        print(score / 10)
-        score = 0.0
-    
-    for i in range(0, 100):
-        for clf in clfs:
-            score += clf.predict(neg_datas.iloc[i])[0]
+    # print(score)
+    # neg_scores.append(score[0])
+    # score = 0.0
 
-        print(score / 10)
-        score = 0.0
+    # plt.hist(neg_scores, bins=10, stacked=True)
+    # neg_hist, _ = np.histogram(neg_scores, bins=10)
+    # plt.show()
+
+    pos_scores = np.zeros([1, pos_valid.shape[0]])
+    # for i in range(pos_valid.shape[0]):
+    for j in range(len(clfs)):
+        # score += clfs[j].predict(pos_valid.iloc[i])[0] * weights[j]
+        pos_scores += clfs[j].predict(pos_valid.values)[:, 0] * weights[j]
+        # score = clfs[best_clf].predict(pos_valid.iloc[i])[0]
+        # score = clfs[worst_clf].predict(pos_valid.iloc[i])[0]
+
+    # print(score)
+    # pos_scores.append(score[0])
+    # score = 0.0
+
+    sc_ls = list()
+    sc_ls.append(neg_scores[0])
+    sc_ls.append(pos_scores[0])
+    plt.hist(sc_ls, bins=20, label=['neg', 'pos'], normed=True)
+    # plt.hist(pos_scores, bins=10, label='pos', color='b', stacked=True)
+    # pos_hist, _ = np.histogram(pos_scores, bins=10)
+    # plt.bar(plot_range, neg_hist, label='neg', color='c')
+    # plt.bar(plot_range, neg_hist, label='pos', color='b')
+    plt.legend(loc='best')
+    plt.show()
 
     # label_ls = [pos_datas.shape[0], pos_datas[0].shape[0]]
     # print(ret)

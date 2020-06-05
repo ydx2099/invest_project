@@ -44,6 +44,7 @@ class myThread(td.Thread):
         self.result = self.func(*self.args)
 
     def getRes(self):
+        run()
         return self.result
 
 
@@ -425,41 +426,13 @@ class extract_feature():
         df_group = data.groupby(by="Symbol")
         self.stock = list(df_group.groups.keys())
 
-    # 获取正样本
-    def cal_sample(self):
-        dates = np.array_split(self.date[20:], self.thread_num)
+
+    def filter_func(self, dates:np.array):
+        # 收集结果
         pos_res = list()
         neg_res = list()
         mid_res = list()
-        tds = []
-        for i in range(0, self.thread_num):
-            t = myThread(self.filter_func, args=(dates[i],))
-            tds.append(t)
-            tds[i].start()
-        for i in range(0, self.thread_num):
-            tds[i].join()
-            pos_tmp = list()
-            neg_tmp = list()
-            mid_tmp = list()
-            pos_tmp, mid_tmp, neg_tmp = tds[i].getRes()
-            pos_res += pos_tmp
-            neg_res += neg_tmp
-            mid_res += mid_tmp
-
-        # 写出
-        pd.DataFrame(pos_res, columns=['Id', 'Date', 'P5', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\pos.csv', index=False)
-        pd.DataFrame(neg_res, columns=['Id', 'Date', 'P5', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\neg.csv', index=False)
-        pd.DataFrame(mid_res, columns=['Id', 'Date', 'P5', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\mid.csv', index=False)
-        # pd.DataFrame(pos_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'D:\wuziyang\workfile\\pos.csv', index=False)
-        # pd.DataFrame(neg_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes']).to_csv(r'D:\wuziyang\workfile\\neg.csv', index=False)
-        return
-
-    def filter_func(self, dates:np.array):
         for date in dates:
-            # 收集结果
-            pos_res = list()
-            neg_res = list()
-            mid_res = list()
             # 获取对应日期数据
             today_indexes = self.date.index(date)
             cal_date = self.date[today_indexes - 20: today_indexes + 5]
@@ -479,10 +452,10 @@ class extract_feature():
                         old_data = old_data['Close'].values
                         av = np.mean(old_data)
                         std = np.std(old_data)
-                        # # 20天的p
-                        # p20 = cur_data.iloc[-6]['Close'] / cur_data.iloc[0]['Close']
-                        # # 10天的p
-                        # p10 = cur_data.iloc[-6]['Close'] / cur_data.iloc[10]['Close']
+                        # 20天的p
+                        p20 = cur_data.iloc[-6]['Close'] / cur_data.iloc[0]['Close']
+                        # 10天的p
+                        p10 = cur_data.iloc[-6]['Close'] / cur_data.iloc[10]['Close']
                         # 5天的p
                         p5 = cur_data.iloc[-6]['Close'] / cur_data.iloc[15]['Close']
                         # 超越均值的标准差倍数
@@ -491,16 +464,50 @@ class extract_feature():
                         std_rate = std / av
                         if cur_p >= 1.12:
                             # 记录
-                            # pos_res.append([i, date, p5, p10, p20, over_times])
-                            pos_res.append([i, date, p5, over_times, std_rate])
+                            pos_res.append([i, date, p5, p10, p20, over_times, std_rate])
+                            # pos_res.append([i, date, p5, over_times, std_rate])
                         if 1.12 > cur_p > 1:
-                            mid_res.append([i, date, p5, over_times, std_rate])
+                            # mid_res.append([i, date, p5, over_times, std_rate])
+                            mid_res.append([i, date, p5, p10, p20, over_times, std_rate])
                         if cur_p <= 1:
                             # 记录
-                            # neg_res.append([i, date, p5, p10, p20, over_times])
-                            neg_res.append([i, date, p5, over_times, std_rate])
+                            neg_res.append([i, date, p5, p10, p20, over_times, std_rate])
+                            # neg_res.append([i, date, p5, over_times, std_rate])
 
         return pos_res, mid_res, neg_res
+
+
+    # 获取正样本
+    def cal_sample(self):
+        # dates = np.array_split(self.date[20:], self.thread_num)
+        pos_res = list()
+        neg_res = list()
+        mid_res = list()
+        pos_res, mid_res, neg_res = self.filter_func(self.date[20:])
+        # tds = []
+        # for i in range(0, self.thread_num):
+        #     t = myThread(self.filter_func, args=(dates[i],))
+        #     tds.append(t)
+        #     tds[i].start()
+        # for i in range(0, self.thread_num):
+        #     tds[i].join()
+        #     pos_tmp = list()
+        #     neg_tmp = list()
+        #     mid_tmp = list()
+        #     pos_tmp, mid_tmp, neg_tmp = tds[i].getRes()
+        #     pos_res += pos_tmp
+        #     neg_res += neg_tmp
+        #     mid_res += mid_tmp
+
+        # 写出
+        # pd.DataFrame(pos_res, columns=['Id', 'Date', 'P5', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\pos.csv', index=False)
+        # pd.DataFrame(neg_res, columns=['Id', 'Date', 'P5', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\neg.csv', index=False)
+        # pd.DataFrame(mid_res, columns=['Id', 'Date', 'P5', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\mid.csv', index=False)
+        pd.DataFrame(pos_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\workfile\\pos3.csv', index=False)
+        pd.DataFrame(mid_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\workfile\\mid3.csv', index=False)
+        pd.DataFrame(neg_res, columns=['Id', 'Date', 'P5', 'P10', 'P20', 'OverTimes', 'Std']).to_csv(r'D:\wuziyang\workfile\\neg3.csv', index=False)
+        return
+
 
 # lgbm with kfold
 # 将数据根据不同策略进行分类，收益符合预期的为大于1的类别，失败例分为类别0
@@ -887,10 +894,11 @@ if __name__ == "__main__":
     # 去除科创板和沪B
     data = data[data['Symbol'] < 680000]
     # data = data[['Symbol', 'TradingDate', 'ChangeRatio']]
-    # data = data[data['TradingDate'] >= 20180000]
+    data = data[data['TradingDate'] <= 20200200]
+    data = data[data['TradingDate'] >= 20190200]
     # 特征提取
-    # e = extract_feature(data)
-    # e.cal_sample()
+    e = extract_feature(data)
+    e.cal_sample()
 
     # temp_use()
     # 策略测试
@@ -902,17 +910,17 @@ if __name__ == "__main__":
     # print(np.std(np.array(d)))
     
     # # 生成一天的ml测试数据
-    df_group = data.groupby(by="TradingDate")
-    tradingdate = list(df_group.groups.keys())
+    # df_group = data.groupby(by="TradingDate")
+    # tradingdate = list(df_group.groups.keys())
     # cal_lgbm(data, 20200306, tradingdate)
 
     # # ml
     # machine_learning()
 
     # AverRegression_test(data, tradingdate)
-    test(data, tradingdate)
+    # test(data, tradingdate)
 
-    earn_logger.close
-    loss_logger.close
+    # earn_logger.close
+    # loss_logger.close
 
     print("time:" + str(time.time() - startt))
